@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Firmable — Company Search</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      background: #f5f6f8;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .layout {
+      display: flex;
+      gap: 0;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 16px;
+      align-items: flex-start;
+    }
+
+    /* ── Filters panel ─────────────────────────────────────── */
+    .filters-panel {
+      flex: 0 0 260px;
+      background: #fff;
+      border: 1px solid #e0e2e8;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .filters-panel h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      margin-bottom: 14px;
+    }
+
+    .filter-section {
+      margin-bottom: 18px;
+    }
+
+    .filter-section legend {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .filter-section input[type="text"],
+    .filter-section input[type="number"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      background: #fafafa;
+      color: #1a1a2e;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .filter-section input[type="text"]:focus,
+    .filter-section input[type="number"]:focus {
+      border-color: #3b82f6;
+      background: #fff;
+    }
+
+    .year-row {
+      display: flex;
+      gap: 8px;
+    }
+    .year-row label {
+      flex: 1;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .year-row input {
+      margin-top: 4px;
+    }
+
+    .checkbox-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .checkbox-list li label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #374151;
+    }
+
+    .checkbox-list input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .tags-note {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #e5e7eb; }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: #2563eb; }
+
+    /* ── Results panel ─────────────────────────────────────── */
+    .results-panel {
+      flex: 1;
+      min-width: 0;
+      margin-left: 16px;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      min-height: 24px;
+    }
+
+    #result-count {
+      font-size: 13px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    /* loading / error banners */
+    #loading-indicator {
+      display: none;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    #error-message {
+      display: none;
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Result cards ──────────────────────────────────────── */
+    #result-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .company-card {
+      background: #fff;
+      border: 1px solid #e0e2e8;
+      border-radius: 8px;
+      padding: 14px 18px;
+      transition: box-shadow 0.15s;
+    }
+    .company-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+
+    .card-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+
+    .card-domain {
+      font-size: 12px;
+      color: #3b82f6;
+      margin-bottom: 8px;
+    }
+
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+    }
+
+    .card-meta span {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .card-meta span strong {
+      color: #374151;
+      font-weight: 500;
+    }
+
+    /* empty state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    .empty-state p { margin-top: 6px; font-size: 13px; }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .layout {
+        flex-direction: column;
+        padding: 12px;
+      }
+      .filters-panel { flex: none; width: 100%; }
+      .results-panel { margin-left: 0; margin-top: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>Firmable — Company Search</header>
+
+<div class="layout">
+
+  <!-- ── Filters ───────────────────────────────────────────── -->
+  <form id="search-form" class="filters-panel" autocomplete="off">
+    <h2>Filters</h2>
+
+    <!-- Free text -->
+    <fieldset class="filter-section" style="border:none">
+      <legend>Search</legend>
+      <input
+        type="text"
+        id="query-input"
+        name="query"
+        placeholder="Company name, keyword…"
+        aria-label="Search companies"
+      />
+    </fieldset>
+
+    <!-- Industry -->
+    <fieldset class="filter-section" style="border:none">
+      <legend>Industry</legend>
+      <ul class="checkbox-list" id="industry-list">
+        <li><label><input type="checkbox" name="industry" value="Information Technology" />Information Technology</label></li>
+        <li><label><input type="checkbox" name="industry" value="Financial Services" />Financial Services</label></li>
+        <li><label><input type="checkbox" name="industry" value="Healthcare" />Healthcare</label></li>
+        <li><label><input type="checkbox" name="industry" value="Retail" />Retail</label></li>
+        <li><label><input type="checkbox" name="industry" value="Manufacturing" />Manufacturing</label></li>
+        <li><label><input type="checkbox" name="industry" value="Education" />Education</label></li>
+        <li><label><input type="checkbox" name="industry" value="Real Estate" />Real Estate</label></li>
+        <li><label><input type="checkbox" name="industry" value="Transportation" />Transportation</label></li>
+      </ul>
+    </fieldset>
+
+    <!-- Company size -->
+    <fieldset class="filter-section" style="border:none">
+      <legend>Company Size</legend>
+      <ul class="checkbox-list">
+        <li><label><input type="checkbox" name="size_range" value="1-10" />1 – 10</label></li>
+        <li><label><input type="checkbox" name="size_range" value="11-50" />11 – 50</label></li>
+        <li><label><input type="checkbox" name="size_range" value="51-200" />51 – 200</label></li>
+        <li><label><input type="checkbox" name="size_range" value="201-500" />201 – 500</label></li>
+        <li><label><input type="checkbox" name="size_range" value="501-1000" />501 – 1,000</label></li>
+        <li><label><input type="checkbox" name="size_range" value="1001-5000" />1,001 – 5,000</label></li>
+        <li><label><input type="checkbox" name="size_range" value="5001-10000" />5,001 – 10,000</label></li>
+        <li><label><input type="checkbox" name="size_range" value="10001+" />10,001+</label></li>
+      </ul>
+    </fieldset>
+
+    <!-- Location -->
+    <fieldset class="filter-section" style="border:none">
+      <legend>Location</legend>
+      <input
+        type="text"
+        name="country"
+        id="country-input"
+        placeholder="Country (e.g. United States)"
+        aria-label="Country"
+        style="margin-bottom:8px"
+      />
+      <input
+        type="text"
+        name="city"
+        id="city-input"
+        placeholder="City (e.g. New York)"
+        aria-label="City"
+      />
+    </fieldset>
+
+    <!-- Founding year -->
+    <fieldset class="filter-section" style="border:none">
+      <legend>Founding Year</legend>
+      <div class="year-row">
+        <label>
+          From
+          <input type="number" name="year_founded_gte" id="year-from" min="1700" max="2026" placeholder="1900" />
+        </label>
+        <label>
+          To
+          <input type="number" name="year_founded_lte" id="year-to" min="1700" max="2026" placeholder="2026" />
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Tags (placeholder) -->
+    <fieldset class="filter-section" style="border:none">
+      <legend>Tags</legend>
+      <ul class="checkbox-list">
+        <li><label><input type="checkbox" name="tag" value="my-tags" disabled />My Tags</label></li>
+        <li><label><input type="checkbox" name="tag" value="shared" disabled />Shared Lists</label></li>
+      </ul>
+      <p class="tags-note">Tag filtering coming soon.</p>
+    </fieldset>
+
+    <!-- Actions -->
+    <div class="filter-actions">
+      <button type="button" class="btn btn-secondary" id="clear-btn">Clear All</button>
+      <button type="submit" class="btn btn-primary" id="search-btn">Apply Filters</button>
+    </div>
+  </form>
+
+  <!-- ── Results ───────────────────────────────────────────── -->
+  <section class="results-panel" aria-live="polite">
+    <div class="results-header">
+      <span id="result-count"></span>
+      <span id="loading-indicator">Searching…</span>
+    </div>
+
+    <div id="error-message" role="alert"></div>
+
+    <div id="result-list">
+      <div class="empty-state">
+        <strong>Enter a query or select filters, then press Enter or Apply Filters.</strong>
+        <p>Results will appear here.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

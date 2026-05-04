@@ -459,3 +459,21 @@ update these answers to the clarifications"
 **Context**: CONSTRUCTION - P2-T05 Write staged Parquet output — COMPLETE
 
 ---
+
+## P2-T06 Emit validation and dead-letter artifacts
+
+**Timestamp**: 2026-05-04T09:00:00Z
+**User Input**: "Let's do the next one"
+**AI Response**: "Extended app/ingestion/stage.py: StagingResult gains dead*letter_path and validation_summary_path fields; stage_companies now writes dead_letter*<ts>.jsonl (one JSON line per rejected row: source*id, raw_name, reason) and validation_summary*<ts>.json (run_timestamp, csv_path, parquet_path, dead_letter_path, total_rows_read, valid_rows_written, skipped_rows, success_rate, skip_reason_counts). All three artifacts share the same UTC timestamp suffix. Created tests/test_validation_artifacts.py with 32 tests across 7 classes. Created docs/ingestion-artifacts.md with artifact inventory, column schemas, operator workflow, and scaling notes. Full suite: 195/195 passed. Updated P2-T06 to completed; completed_tasks=14, todo_tasks=31."
+**Context**: CONSTRUCTION - P2-T06 Emit validation and dead-letter artifacts — COMPLETE
+
+---
+
+## P2-T07 Seed flow with alias swap
+
+**Timestamp**: 2026-05-04T10:00:00Z
+**User Input**: "Implement p2-t07. make sure tests are written and verified"
+**AI Response**: "Created app/ingestion/seed.py with OpenSearchSeedClient (stdlib urllib), build_bulk_body, make_index_name, swap_aliases, seed() pipeline (read Parquet → create_index → bulk batches → swap aliases), and CLI main(). Created tests/test_seed.py with 47 tests across 7 classes covering: NDJSON body construction, index name format, alias-swap sequencing, seed orchestration, batching boundaries, empty Parquet, error handling, and SeedResult defaults. Full suite: 242/242 passed. Updated P2-T07 plan checkboxes to [x]; planning/firmable-task-breakdown.json: completed_tasks=15, todo_tasks=30."
+**Context**: CONSTRUCTION - P2-T07 Seed flow with alias swap — COMPLETE
+
+---

@@ -1,10 +1,12 @@
-"""Staged Parquet output pipeline (P2-T05).
+"""Staged Parquet output pipeline (P2-T05/P2-T06).
 
 Wires the CSV reader, field normalizers, and identity helpers into a single
-pass that produces:
+pass that produces three artifacts per run:
 
-  data/staged/companies_<timestamp>.parquet   — valid normalized records
-  data/staged/latest.parquet                 — symlink to the most recent run
+  data/staged/companies_<timestamp>.parquet          — valid normalized records
+  data/staged/dead_letter_<timestamp>.jsonl          — rejected rows with reasons
+  data/staged/validation_summary_<timestamp>.json    — machine-readable run stats
+  data/staged/latest.parquet                         — symlink to most recent run
 
 Each run is self-contained and deterministic for the same input slice so
 downstream seed and sync commands can replay without re-reading the CSV.
@@ -12,7 +14,7 @@ downstream seed and sync commands can replay without re-reading the CSV.
 Public API
 ----------
 stage_companies(csv_path, output_dir, row_limit) -> StagingResult
-    Run the normalization pipeline and write the Parquet artifact.
+    Run the normalization pipeline and write all artifacts.
 
 StagingResult
     Metadata struct returned by stage_companies.
@@ -20,6 +22,7 @@ StagingResult
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -74,13 +77,18 @@ class StagingResult:
 
     Attributes:
         parquet_path: Absolute path to the written Parquet file.
+        dead_letter_path: Absolute path to the JSONL dead-letter file.
+        validation_summary_path: Absolute path to the JSON validation summary.
         total_rows_read: Number of source rows consumed from the CSV.
         valid_rows_written: Number of rows successfully written.
         skipped_rows: Number of rows skipped (blank name after normalization).
         run_timestamp: UTC timestamp when the run started.
+        skip_reasons: Per-row rejection details (source_id, raw_name, reason).
     """
 
     parquet_path: Path
+    dead_letter_path: Path
+    validation_summary_path: Path
     total_rows_read: int
     valid_rows_written: int
     skipped_rows: int
@@ -216,7 +224,42 @@ def stage_companies(
     table = pa.Table.from_arrays(arrays, schema=PARQUET_SCHEMA)
     pq.write_table(table, parquet_path, compression="snappy")
 
+    # ------------------------------------------------------------------
+    # Dead-letter artifact — one JSON line per rejected row
+    # ------------------------------------------------------------------
+    dead_letter_path = output_dir / f"dead_letter_{ts_str}.jsonl"
+    with dead_letter_path.open("w", encoding="utf-8") as dl_file:
+        for entry in skip_reasons:
+            dl_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    # ------------------------------------------------------------------
+    # Validation summary artifact — machine-readable run statistics
+    # ------------------------------------------------------------------
+    valid_count = len(records)
+    skipped_count = len(skip_reasons)
+    skip_reason_counts: dict[str, int] = {}
+    for entry in skip_reasons:
+        reason = entry.get("reason", "unknown")
+        skip_reason_counts[reason] = skip_reason_counts.get(reason, 0) + 1
+
+    summary = {
+        "run_timestamp": run_ts.isoformat(),
+        "csv_path": str(csv_path),
+        "parquet_path": str(parquet_path),
+        "dead_letter_path": str(dead_letter_path),
+        "total_rows_read": total_read,
+        "valid_rows_written": valid_count,
+        "skipped_rows": skipped_count,
+        "success_rate": valid_count / total_read if total_read else 0.0,
+        "skip_reason_counts": skip_reason_counts,
+    }
+    validation_summary_path = output_dir / f"validation_summary_{ts_str}.json"
+    with validation_summary_path.open("w", encoding="utf-8") as vs_file:
+        json.dump(summary, vs_file, indent=2)
+
+    # ------------------------------------------------------------------
     # Update the 'latest' symlink atomically
+    # ------------------------------------------------------------------
     latest_link = output_dir / "latest.parquet"
     tmp_link = output_dir / f"latest.parquet.tmp_{os.getpid()}"
     tmp_link.symlink_to(parquet_path.name)
@@ -224,9 +267,11 @@ def stage_companies(
 
     return StagingResult(
         parquet_path=parquet_path,
+        dead_letter_path=dead_letter_path,
+        validation_summary_path=validation_summary_path,
         total_rows_read=total_read,
-        valid_rows_written=len(records),
-        skipped_rows=len(skip_reasons),
+        valid_rows_written=valid_count,
+        skipped_rows=skipped_count,
         run_timestamp=run_ts,
         skip_reasons=skip_reasons,
     )

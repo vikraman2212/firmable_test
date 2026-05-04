@@ -1,9 +1,10 @@
 {
-  "index_patterns": ["companies*"],
+  "index_patterns": ["compan*"],
   "template": {
     "settings": {
       "number_of_shards": 1,
       "number_of_replicas": 0,
+      "refresh_interval": "10s",
       "default_pipeline": "firmable-description-embedding-pipeline",
       "index.knn": true,
       "analysis": {

@@ -10,8 +10,11 @@ CREATE_PIPELINES_SCRIPT ?= infra/opensearch/bootstrap/03-create-pipelines.sh
 OLLAMA_PULL_SCRIPT ?= infra/ollama/pull-model.sh
 OPENSEARCH_URL ?= http://localhost:9200
 OLLAMA_CONTAINER ?= firmable-ollama
-CSV ?= data/sample.csv
-PYTHON ?= python
+INGESTION_CONFIG ?= config/ingestion.toml
+CSV ?=
+PARQUET ?=
+SOFT_DELETE ?= false
+PYTHON ?= uv run python
 
 .PHONY: help check-tools compose-config infra-up infra-down infra-reset infra-ps infra-logs opensearch-health script-check bootstrap-model bootstrap validate ci-validate ollama-pull seed sync test dev-setup
 
@@ -27,8 +30,11 @@ check-tools: ## Verify required local tooling is installed
 compose-config: ## Validate the Docker Compose configuration
 	@$(DOCKER_COMPOSE) config >/dev/null
 
-infra-up: ## Start the local OpenSearch infrastructure in detached mode
+infra-up: ## Start the local OpenSearch infrastructure and run ML bootstrap (model, pipelines, index template)
 	@$(DOCKER_COMPOSE) up -d
+	@bash $(REGISTER_MODEL_SCRIPT)
+	@bash $(DEPLOY_MODEL_SCRIPT)
+	@bash $(CREATE_PIPELINES_SCRIPT)
 
 infra-down: ## Stop the local infrastructure and keep volumes
 	@$(DOCKER_COMPOSE) down --remove-orphans
@@ -56,7 +62,7 @@ bootstrap-model: ## Register and deploy the embedding model, create pipelines an
 	@bash $(DEPLOY_MODEL_SCRIPT)
 	@bash $(CREATE_PIPELINES_SCRIPT)
 
-bootstrap: check-tools compose-config infra-up bootstrap-model ## Start infra and run the OpenSearch ML bootstrap flow
+bootstrap: check-tools compose-config infra-up ## Start infra and run the OpenSearch ML bootstrap flow
 
 validate: compose-config script-check ## Run local validation checks for infra automation artifacts
 
@@ -65,13 +71,13 @@ ci-validate: compose-config script-check ## Run non-interactive checks suitable 
 ollama-pull: ## Pull the Ollama LLM model into the running container
 	@bash $(OLLAMA_PULL_SCRIPT)
 
-seed: ## Index companies from a CSV file (CSV=data/sample.csv)
-	$(PYTHON) app/ingestion/seed.py --csv $(CSV)
+seed: ## Index companies using config/ingestion.toml (override with CSV=path or PARQUET=path)
+	$(PYTHON) -m app.ingestion.seed --config $(INGESTION_CONFIG) $(if $(CSV),--csv $(CSV),) $(if $(PARQUET),--parquet $(PARQUET),)
 
-sync: ## Incrementally re-sync companies into the search index
-	$(PYTHON) app/ingestion/sync.py
+sync: ## Incrementally re-sync companies using config/ingestion.toml
+	$(PYTHON) -m app.ingestion.sync --config $(INGESTION_CONFIG) $(if $(PARQUET),--parquet $(PARQUET),) $(if $(filter true TRUE 1 yes YES,$(SOFT_DELETE)),--soft-delete,)
 
 test: ## Run the test suite with pytest
-	$(PYTHON) -m pytest tests/ -v
+	uv run pytest tests/ -v
 
-dev-setup: infra-up ollama-pull bootstrap-model ## One-shot local onboarding: start stack, pull model, run ML bootstrap
+dev-setup: infra-up ollama-pull ## One-shot local onboarding: start stack, pull model, run ML bootstrap

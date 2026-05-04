@@ -5,9 +5,9 @@
   "summary": {
     "total_milestones": 6,
     "total_tasks": 46,
-    "completed_tasks": 13,
+    "completed_tasks": 15,
     "in_progress_tasks": 0,
-    "todo_tasks": 32
+    "todo_tasks": 30
   },
   "milestones": [
     {
@@ -308,7 +308,7 @@
       "milestone_id": "phase-2",
       "phase": "Phase 2",
       "title": "Emit validation and dead-letter artifacts",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P2-T05"
       ],
@@ -323,7 +323,7 @@
       "milestone_id": "phase-2",
       "phase": "Phase 2",
       "title": "Implement seed flow with alias swap",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P2-T05",
         "P1-T08"

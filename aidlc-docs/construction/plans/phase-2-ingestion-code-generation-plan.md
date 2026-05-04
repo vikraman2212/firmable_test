@@ -53,17 +53,17 @@
 
 ### P2-T06 Emit validation and dead-letter artifacts
 
-- [ ] Emit rejected rows to a dead-letter artifact with explicit failure reasons.
-- [ ] Emit a machine-readable validation summary for each normalization run.
-- [ ] Document artifact outputs and operator workflow in ingestion documentation.
-- [ ] Add tests covering rejected-row capture and summary generation.
+- [x] Emit rejected rows to a dead-letter artifact with explicit failure reasons.
+- [x] Emit a machine-readable validation summary for each normalization run.
+- [x] Document artifact outputs and operator workflow in ingestion documentation.
+- [x] Add tests covering rejected-row capture and summary generation.
 
 ### P2-T07 Implement seed flow with alias swap
 
-- [ ] Create `app/ingestion/seed.py` to normalize input, apply the template, create a write index, and bulk index staged records.
-- [ ] Route seed indexing through the default embedding pipeline.
-- [ ] Swap read and write aliases safely after a successful load.
-- [ ] Add a focused test surface for request construction and alias-swap sequencing.
+- [x] Create `app/ingestion/seed.py` to normalize input, apply the template, create a write index, and bulk index staged records.
+- [x] Route seed indexing through the default embedding pipeline.
+- [x] Swap read and write aliases safely after a successful load.
+- [x] Add a focused test surface for request construction and alias-swap sequencing.
 
 ### P2-T08 Implement incremental sync flow
 

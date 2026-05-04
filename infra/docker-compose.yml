@@ -21,7 +21,6 @@ services:
       plugins.ml_commons.model_auto_deploy.enable: "true"
     volumes:
       - opensearch-data:/var/lib/opensearch
-      - ./opensearch/index.json:/usr/share/opensearch/config/index.json:ro
       - ../app/search/synonyms.txt:/usr/share/opensearch/config/analysis/synonyms.txt:ro
     ports:
       - "9200:9200"
@@ -76,29 +75,24 @@ services:
     networks:
       - firmable
 
-  # Step 4: api placeholder — python http.server on 8000, wired to opensearch and ollama.
-  # Replace image + command with the FastAPI build context in P3-T01.
   api:
-    image: python:3.12-slim
+    build:
+      context: ..
+      dockerfile: infra/api/Dockerfile
     container_name: firmable-api
-    command: [ "python", "-m", "http.server", "8000" ]
     ports:
       - "8000:8000"
     environment:
       OPENSEARCH_URL: "http://opensearch:9200"
-      OLLAMA_BASE_URL: "http://ollama:11434"
-      OLLAMA_MODEL: "${OLLAMA_MODEL:-gemma3:4b}"
     depends_on:
       opensearch:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
     healthcheck:
-      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     networks:
       - firmable
 
