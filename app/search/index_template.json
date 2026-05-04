@@ -1,0 +1,57 @@
+{
+  "index_patterns": ["companies*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "default_pipeline": "firmable-description-embedding-pipeline",
+      "index.knn": true,
+      "analysis": {
+        "filter": {
+          "industry_synonyms": {
+            "type": "synonym",
+            "synonyms_path": "analysis/synonyms.txt"
+          }
+        },
+        "analyzer": {
+          "synonym_analyzer": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase", "industry_synonyms"]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "company_id":        { "type": "keyword" },
+        "name":              { "type": "text", "analyzer": "standard", "fields": { "keyword": { "type": "keyword" } } },
+        "domain":            { "type": "keyword" },
+        "industry":          { "type": "text", "analyzer": "synonym_analyzer", "fields": { "keyword": { "type": "keyword" } } },
+        "size_range":        { "type": "keyword" },
+        "city":              { "type": "keyword" },
+        "region":            { "type": "keyword" },
+        "country":           { "type": "keyword" },
+        "year_founded":      { "type": "integer" },
+        "current_employee_estimate": { "type": "integer" },
+        "total_employee_estimate":   { "type": "integer" },
+        "linkedin_url":      { "type": "keyword" },
+        "company_semantic_text": { "type": "text", "analyzer": "standard" },
+        "company_vector": {
+          "type": "knn_vector",
+          "dimension": 384,
+          "method": {
+            "name": "hnsw",
+            "engine": "faiss",
+            "space_type": "innerproduct",
+            "parameters": {
+              "m": 16,
+              "ef_construction": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+# Industry / category synonyms — Solr format (one equivalence group per line).
+# These are inlined into index_template.json's synonym_analyzer token filter.
+# Keep both files in sync when adding new groups.
+
+tech, technology, it, information technology
+ai, artificial intelligence, machine learning, ml, deep learning
+fintech, financial technology, financial services technology
+healthtech, health technology, healthcare technology, digital health, medtech
+saas, software as a service, cloud software
+ecommerce, e-commerce, electronic commerce, online retail
+cybersecurity, information security, infosec, network security
+edtech, education technology, educational technology
+proptech, property technology, real estate technology
+legaltech, legal technology, lawtech
+cleantech, clean technology, green technology, sustainability tech
+hrtech, hr technology, human resources technology
+martech, marketing technology
+insurtech, insurance technology
+biotech, biotechnology, life sciences
+logistics, supply chain, supply chain technology
+adtech, advertising technology
+traveltech, travel technology, hospitality technology

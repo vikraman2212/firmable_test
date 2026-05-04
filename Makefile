@@ -1,0 +1,77 @@
+SHELL := /bin/bash
+
+.DEFAULT_GOAL := help
+
+COMPOSE_FILE ?= infra/docker-compose.yml
+DOCKER_COMPOSE ?= docker compose -f $(COMPOSE_FILE)
+REGISTER_MODEL_SCRIPT ?= infra/opensearch/bootstrap/01-register-model.sh
+DEPLOY_MODEL_SCRIPT ?= infra/opensearch/bootstrap/02-deploy-model.sh
+CREATE_PIPELINES_SCRIPT ?= infra/opensearch/bootstrap/03-create-pipelines.sh
+OLLAMA_PULL_SCRIPT ?= infra/ollama/pull-model.sh
+OPENSEARCH_URL ?= http://localhost:9200
+OLLAMA_CONTAINER ?= firmable-ollama
+CSV ?= data/sample.csv
+PYTHON ?= python
+
+.PHONY: help check-tools compose-config infra-up infra-down infra-reset infra-ps infra-logs opensearch-health script-check bootstrap-model bootstrap validate ci-validate ollama-pull seed sync test dev-setup
+
+help: ## Show available developer and CI targets
+	@awk 'BEGIN {FS = ":.*## "; printf "Available targets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+check-tools: ## Verify required local tooling is installed
+	@command -v docker >/dev/null 2>&1 || { echo "docker is required"; exit 1; }
+	@command -v bash >/dev/null 2>&1 || { echo "bash is required"; exit 1; }
+	@command -v curl >/dev/null 2>&1 || { echo "curl is required"; exit 1; }
+	@command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 1; }
+
+compose-config: ## Validate the Docker Compose configuration
+	@$(DOCKER_COMPOSE) config >/dev/null
+
+infra-up: ## Start the local OpenSearch infrastructure in detached mode
+	@$(DOCKER_COMPOSE) up -d
+
+infra-down: ## Stop the local infrastructure and keep volumes
+	@$(DOCKER_COMPOSE) down --remove-orphans
+
+infra-reset: ## Stop the local infrastructure and remove volumes
+	@$(DOCKER_COMPOSE) down -v --remove-orphans
+
+infra-ps: ## List running services in the local infrastructure stack
+	@$(DOCKER_COMPOSE) ps
+
+infra-logs: ## Tail logs from the local infrastructure stack
+	@$(DOCKER_COMPOSE) logs -f --tail=200
+
+opensearch-health: ## Print the current OpenSearch cluster health payload
+	@curl -fsS $(OPENSEARCH_URL)/_cluster/health | jq .
+
+script-check: ## Validate the OpenSearch bootstrap script syntax
+	@bash -n $(REGISTER_MODEL_SCRIPT)
+	@bash -n $(DEPLOY_MODEL_SCRIPT)
+	@bash -n $(CREATE_PIPELINES_SCRIPT)
+	@bash -n $(OLLAMA_PULL_SCRIPT)
+
+bootstrap-model: ## Register and deploy the embedding model, create pipelines and index template
+	@bash $(REGISTER_MODEL_SCRIPT)
+	@bash $(DEPLOY_MODEL_SCRIPT)
+	@bash $(CREATE_PIPELINES_SCRIPT)
+
+bootstrap: check-tools compose-config infra-up bootstrap-model ## Start infra and run the OpenSearch ML bootstrap flow
+
+validate: compose-config script-check ## Run local validation checks for infra automation artifacts
+
+ci-validate: compose-config script-check ## Run non-interactive checks suitable for GitHub Actions
+
+ollama-pull: ## Pull the Ollama LLM model into the running container
+	@bash $(OLLAMA_PULL_SCRIPT)
+
+seed: ## Index companies from a CSV file (CSV=data/sample.csv)
+	$(PYTHON) app/ingestion/seed.py --csv $(CSV)
+
+sync: ## Incrementally re-sync companies into the search index
+	$(PYTHON) app/ingestion/sync.py
+
+test: ## Run the test suite with pytest
+	$(PYTHON) -m pytest tests/ -v
+
+dev-setup: infra-up ollama-pull bootstrap-model ## One-shot local onboarding: start stack, pull model, run ML bootstrap
