@@ -25,31 +25,31 @@
 
 ### P2-T02 Build configurable CSV reader
 
-- [ ] Create `app/ingestion/normalize.py` with a configurable CSV reader entry point.
-- [ ] Support row-limit based local runs and explicit source-file selection.
-- [ ] Map raw source columns into a canonical intermediate shape before validation.
-- [ ] Add unit tests covering subset reads, missing columns, and row-limit behavior.
+- [x] Create `app/ingestion/normalize.py` with a configurable CSV reader entry point.
+- [x] Support row-limit based local runs and explicit source-file selection.
+- [x] Map raw source columns into a canonical intermediate shape before validation.
+- [x] Add unit tests covering subset reads, missing columns, and row-limit behavior.
 
 ### P2-T03 Normalize location and numeric fields
 
-- [ ] Implement normalization helpers for null handling, locality parsing, founded year cleanup, and employee estimate coercion.
-- [ ] Produce stable `city`, `region`, and `country` fields from raw locality inputs.
-- [ ] Keep malformed but recoverable source data visible in validation output instead of silently dropping it.
-- [ ] Add unit tests for malformed years, blank locality values, and numeric coercion edge cases.
+- [x] Implement normalization helpers for null handling, locality parsing, founded year cleanup, and employee estimate coercion.
+- [x] Produce stable `city`, `region`, and `country` fields from raw locality inputs.
+- [x] Keep malformed but recoverable source data visible in validation output instead of silently dropping it.
+- [x] Add unit tests for malformed years, blank locality values, and numeric coercion edge cases.
 
 ### P2-T04 Generate stable company identifiers and semantic text
 
-- [ ] Define stable `company_id` generation rules with explicit precedence from source identifiers and normalized fallbacks.
-- [ ] Preserve canonical domain values for exact matching.
-- [ ] Generate `company_semantic_text` from the normalized company attributes needed by embeddings.
-- [ ] Add unit tests for identifier stability and semantic text composition.
+- [x] Define stable `company_id` generation rules with explicit precedence from source identifiers and normalized fallbacks.
+- [x] Preserve canonical domain values for exact matching.
+- [x] Generate `company_semantic_text` from the normalized company attributes needed by embeddings.
+- [x] Add unit tests for identifier stability and semantic text composition.
 
 ### P2-T05 Write staged Parquet output
 
-- [ ] Write normalized valid records to a deterministic staged Parquet artifact.
-- [ ] Keep artifact naming stable enough for local replay and debugging.
-- [ ] Return artifact metadata needed by seed and sync commands.
-- [ ] Add tests that verify staged artifact creation and deterministic layout.
+- [x] Write normalized valid records to a deterministic staged Parquet artifact.
+- [x] Keep artifact naming stable enough for local replay and debugging.
+- [x] Return artifact metadata needed by seed and sync commands.
+- [x] Add tests that verify staged artifact creation and deterministic layout.
 
 ### P2-T06 Emit validation and dead-letter artifacts
 
@@ -75,7 +75,7 @@
 ## Proposed Implementation Order
 
 - [x] Slice 1 (started): P2-T01 complete. P2-T02–P2-T04 in progress.
-- [ ] Slice 2: P2-T05 and P2-T06 so staging artifacts become observable and replayable.
+- [x] Slice 2 (P2-T05 done): P2-T05 complete. P2-T06 in progress.
 - [ ] Slice 3: P2-T07 seed flow against the existing local OpenSearch stack.
 - [ ] Slice 4: P2-T08 incremental sync once the seed path is stable.
 

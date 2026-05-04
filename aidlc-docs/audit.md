@@ -432,3 +432,30 @@ update these answers to the clarifications"
 **Context**: CONSTRUCTION - P2-T01 Define canonical company schema — COMPLETE
 
 ---
+
+## P2-T02 Implementation Approval and Execution
+
+**Timestamp**: 2026-05-04T05:55:00Z
+**User Input**: "yup, continue the next one"
+**AI Response**: "Implemented P2-T02 — configurable CSV reader. Added read_csv_rows() to app/ingestion/normalize.py: streams rows one at a time (no full load into memory), validates column presence via validate_csv_columns() before processing, supports row_limit for local subset runs, strips whitespace at read time, and maps each row into a RawCompanyRow intermediate shape. Created tests/fixtures/companies_sample.csv and tests/fixtures/companies_edge_cases.csv as reusable test data. 31 unit tests in tests/test_csv_reader.py covering column validation, basic row reading, row_limit behavior, error cases (missing file, missing columns, empty file), and whitespace stripping — all passed green."
+**Context**: CONSTRUCTION - P2-T02 Build configurable CSV reader — COMPLETE
+
+---
+
+## P2-T03 + P2-T04 Parallel Implementation
+
+**Timestamp**: 2026-05-04T06:10:00Z
+**User Input**: "Let's implement t03 and t04 parallelly using sub agents"
+**AI Response**: "Dispatched two sub-agents simultaneously. T03 sub-agent created app/ingestion/normalizers.py (10 pure normalization functions: normalize_text_field, normalize_name, normalize_domain, normalize_industry, normalize_size_range, normalize_linkedin_url, normalize_country, parse_locality, parse_year_founded, parse_employee_estimate) and tests/test_normalizers.py (58 tests). T04 sub-agent created app/ingestion/identity.py (build_company_id, build_semantic_text) and tests/test_identity.py (20 tests). Updated app/ingestion/normalize.py to re-export all symbols from both new modules so callers use a single import point. Full suite ran: 135/135 passed."
+**Context**: CONSTRUCTION - P2-T03 Normalize location and numeric fields — COMPLETE; P2-T04 Generate stable company identifiers and semantic text — COMPLETE
+
+---
+
+## P2-T05 Write staged Parquet output
+
+**Timestamp**: 2026-05-04T08:00:00Z
+**User Input**: "Yes, let's do p2-t05. make sure to update the status in the breakdown.json"
+**AI Response**: "Created app/ingestion/stage.py with PARQUET_SCHEMA, StagingResult dataclass, \_normalize_row helper, and stage_companies(csv_path, output_dir, row_limit) entry point. Installed pyarrow>=14. Created tests/test_staging.py with 28 tests across 9 test classes (basic, field values, row_limit, skip counting, empty CSV, output dir creation, symlink, StagingResult properties, error handling). Full suite: 163/163 passed. Updated planning/firmable-task-breakdown.json: P2-T01 through P2-T05 all set to completed, completed_tasks=13, todo_tasks=32. Updated plan checkboxes for P2-T05 to [x]. Added pyarrow>=14 to requirements.txt."
+**Context**: CONSTRUCTION - P2-T05 Write staged Parquet output — COMPLETE
+
+---

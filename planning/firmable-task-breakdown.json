@@ -1,0 +1,807 @@
+{
+  "project": "Firmable Search System",
+  "source_plan": ".github/prompts/plan-firmableSearchSystem-latest.prompt.md",
+  "generated_on": "2026-05-03",
+  "summary": {
+    "total_milestones": 6,
+    "total_tasks": 46,
+    "completed_tasks": 13,
+    "in_progress_tasks": 0,
+    "todo_tasks": 32
+  },
+  "milestones": [
+    {
+      "id": "phase-1",
+      "name": "OpenSearch foundation",
+      "phase": "Phase 1",
+      "goal": "Stand up the local search infrastructure with OpenSearch ML support, embedding bootstrap, and strict mappings.",
+      "task_count": 8,
+      "task_ids": [
+        "P1-T01",
+        "P1-T02",
+        "P1-T03",
+        "P1-T04",
+        "P1-T05",
+        "P1-T06",
+        "P1-T07",
+        "P1-T08"
+      ]
+    },
+    {
+      "id": "phase-2",
+      "name": "Staged ingestion",
+      "phase": "Phase 2",
+      "goal": "Normalize the Kaggle company data into a validated Parquet stage and load it into OpenSearch with repeatable seed and sync flows.",
+      "task_count": 8,
+      "task_ids": [
+        "P2-T01",
+        "P2-T02",
+        "P2-T03",
+        "P2-T04",
+        "P2-T05",
+        "P2-T06",
+        "P2-T07",
+        "P2-T08"
+      ]
+    },
+    {
+      "id": "phase-3",
+      "name": "Search API",
+      "phase": "Phase 3",
+      "goal": "Ship the deterministic FastAPI search surface for the UI, including health endpoints, query planning, and facet aggregation.",
+      "task_count": 8,
+      "task_ids": [
+        "P3-T01",
+        "P3-T02",
+        "P3-T03",
+        "P3-T04",
+        "P3-T05",
+        "P3-T06",
+        "P3-T07",
+        "P3-T08"
+      ]
+    },
+    {
+      "id": "phase-4",
+      "name": "UI",
+      "phase": "Phase 4",
+      "goal": "Provide a minimal static interface for search, filtering, sorting, pagination, and empty-state handling.",
+      "task_count": 6,
+      "task_ids": [
+        "P4-T01",
+        "P4-T02",
+        "P4-T03",
+        "P4-T04",
+        "P4-T05",
+        "P4-T06"
+      ]
+    },
+    {
+      "id": "phase-5",
+      "name": "Intelligent search",
+      "phase": "Phase 5",
+      "goal": "Add the Ollama-backed LangChain agent, hybrid retrieval, vectorization, fallback behavior, and observability.",
+      "task_count": 11,
+      "task_ids": [
+        "P5-T01",
+        "P5-T02",
+        "P5-T03",
+        "P5-T04",
+        "P5-T05",
+        "P5-T06",
+        "P5-T07",
+        "P5-T08",
+        "P5-T09",
+        "P5-T10",
+        "P5-T11"
+      ]
+    },
+    {
+      "id": "phase-6",
+      "name": "Tagging system",
+      "phase": "Phase 6",
+      "goal": "Keep tags outside the core company index and add scoped tag storage, suggestion generation, and API hooks.",
+      "task_count": 5,
+      "task_ids": [
+        "P6-T01",
+        "P6-T02",
+        "P6-T03",
+        "P6-T04",
+        "P6-T05"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "P1-T01",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Create repository skeleton",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "app/",
+        "web/",
+        "infra/opensearch/bootstrap/",
+        "infra/ollama/",
+        "docs/",
+        "tests/"
+      ],
+      "outcome": "The repo has the baseline directory structure required for API, ingestion, search, infrastructure, UI, docs, and tests."
+    },
+    {
+      "id": "P1-T02",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Add Docker Compose stack",
+      "status": "completed",
+      "depends_on": [
+        "P1-T01"
+      ],
+      "files": [
+        "infra/docker-compose.yml"
+      ],
+      "outcome": "Docker Compose defines OpenSearch, OpenSearch Dashboards, Ollama, API, and web services with persistent volumes and network wiring."
+    },
+    {
+      "id": "P1-T03",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Enable OpenSearch ML Commons for local embeddings",
+      "status": "completed",
+      "depends_on": [
+        "P1-T02"
+      ],
+      "files": [
+        "infra/docker-compose.yml"
+      ],
+      "outcome": "The OpenSearch service enables local ML Commons execution and safe local resource thresholds required for text embedding."
+    },
+    {
+      "id": "P1-T04",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Add service health checks and startup ordering",
+      "status": "completed",
+      "depends_on": [
+        "P1-T02",
+        "P1-T03"
+      ],
+      "files": [
+        "infra/docker-compose.yml"
+      ],
+      "outcome": "The local stack waits on OpenSearch, Dashboards, and Ollama readiness before dependent services attempt to start."
+    },
+    {
+      "id": "P1-T05",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Add Makefile workflow commands",
+      "status": "completed",
+      "depends_on": [
+        "P1-T02",
+        "P1-T04"
+      ],
+      "files": [
+        "Makefile"
+      ],
+      "outcome": "The repo has standard commands for bootstrapping infra, pulling the Ollama model, seeding data, syncing data, and running tests locally."
+    },
+    {
+      "id": "P1-T06",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Create cluster settings bootstrap script",
+      "status": "completed",
+      "depends_on": [
+        "P1-T03"
+      ],
+      "files": [
+        "infra/opensearch/bootstrap/00-cluster-settings.sh"
+      ],
+      "outcome": "A bootstrap script waits for cluster health and applies the ML Commons cluster settings required for local development."
+    },
+    {
+      "id": "P1-T07",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Create embedding model registration and deployment scripts",
+      "status": "completed",
+      "depends_on": [
+        "P1-T06"
+      ],
+      "files": [
+        "infra/opensearch/bootstrap/01-register-model.sh",
+        "infra/opensearch/bootstrap/02-deploy-model.sh",
+        "infra/ollama/pull-model.sh"
+      ],
+      "outcome": "Bootstrap scripts register the embedding model group, register the embedding model, deploy it, and cache the Ollama model locally."
+    },
+    {
+      "id": "P1-T08",
+      "milestone_id": "phase-1",
+      "phase": "Phase 1",
+      "title": "Create ingest pipeline, search pipeline, strict template, and synonyms",
+      "status": "completed",
+      "depends_on": [
+        "P1-T07"
+      ],
+      "files": [
+        "infra/opensearch/bootstrap/03-create-pipelines.sh",
+        "app/search/index_template.json",
+        "app/search/synonyms.txt"
+      ],
+      "outcome": "The index template enforces strict mappings, default embedding ingestion, synonym-aware search analysis, and hybrid score blending."
+    },
+    {
+      "id": "P2-T01",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Define canonical company schema",
+      "status": "completed",
+      "depends_on": [
+        "P1-T08"
+      ],
+      "files": [
+        "app/models/company.py"
+      ],
+      "outcome": "A single normalized company model defines required fields, validation rules, and API-safe field names, excludes unsupported source fields such as type, and keeps tags out of the base company schema."
+    },
+    {
+      "id": "P2-T02",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Build configurable CSV reader",
+      "status": "completed",
+      "depends_on": [
+        "P2-T01"
+      ],
+      "files": [
+        "app/ingestion/normalize.py"
+      ],
+      "outcome": "The ingestion code can read the Kaggle CSV, apply a configurable row limit or file subset, and map source columns into the canonical staging shape."
+    },
+    {
+      "id": "P2-T03",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Normalize location and numeric fields",
+      "status": "completed",
+      "depends_on": [
+        "P2-T02"
+      ],
+      "files": [
+        "app/ingestion/normalize.py"
+      ],
+      "outcome": "The normalization pipeline cleans nulls, parses locality into structured location fields, repairs malformed years, and coerces employee counts into consistent numeric values."
+    },
+    {
+      "id": "P2-T04",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Generate stable company identifiers and semantic text",
+      "status": "completed",
+      "depends_on": [
+        "P2-T03"
+      ],
+      "files": [
+        "app/ingestion/normalize.py"
+      ],
+      "outcome": "Every normalized company record has a stable company_id, preserves a canonical domain for exact matching, and generates a company_semantic_text field from name, industry, normalized locality, and optional founded-year language for embeddings, with the field mix to be revisited after inspecting the real dataset."
+    },
+    {
+      "id": "P2-T05",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Write staged Parquet output",
+      "status": "completed",
+      "depends_on": [
+        "P2-T04"
+      ],
+      "files": [
+        "app/ingestion/normalize.py"
+      ],
+      "outcome": "Normalized records are written to a deterministic Parquet artifact that can be reused for bulk indexing without reparsing the raw CSV."
+    },
+    {
+      "id": "P2-T06",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Emit validation and dead-letter artifacts",
+      "status": "todo",
+      "depends_on": [
+        "P2-T05"
+      ],
+      "files": [
+        "app/ingestion/normalize.py",
+        "docs/ingestion.md"
+      ],
+      "outcome": "Rejected rows are preserved with failure reasons and the ingestion run emits a machine-readable validation summary."
+    },
+    {
+      "id": "P2-T07",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Implement seed flow with alias swap",
+      "status": "todo",
+      "depends_on": [
+        "P2-T05",
+        "P1-T08"
+      ],
+      "files": [
+        "app/ingestion/seed.py"
+      ],
+      "outcome": "A seed command applies the template, creates a write index, bulk indexes staged records through the default pipeline, and swaps aliases safely."
+    },
+    {
+      "id": "P2-T08",
+      "milestone_id": "phase-2",
+      "phase": "Phase 2",
+      "title": "Implement incremental sync flow",
+      "status": "todo",
+      "depends_on": [
+        "P2-T07"
+      ],
+      "files": [
+        "app/ingestion/sync.py"
+      ],
+      "outcome": "A sync job can upsert changed companies idempotently, skip unchanged embeddings when possible, and soft-delete missing records when enabled."
+    },
+    {
+      "id": "P3-T01",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Scaffold FastAPI application and runtime settings",
+      "status": "todo",
+      "depends_on": [
+        "P1-T01",
+        "P1-T05"
+      ],
+      "files": [
+        "app/settings.py",
+        "app/api/"
+      ],
+      "outcome": "The API service can start with central configuration for OpenSearch, Ollama, aliases, tracing flags, and environment-specific defaults."
+    },
+    {
+      "id": "P3-T02",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Define request and response contracts",
+      "status": "todo",
+      "depends_on": [
+        "P3-T01",
+        "P2-T01"
+      ],
+      "files": [
+        "app/models/company.py",
+        "app/api/routes/search.py"
+      ],
+      "outcome": "The API enforces typed request payloads and consistent response envelopes for search, facets, health, and readiness."
+    },
+    {
+      "id": "P3-T03",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Implement deterministic query planner",
+      "status": "todo",
+      "depends_on": [
+        "P3-T02"
+      ],
+      "files": [
+        "app/search/query_planner.py"
+      ],
+      "outcome": "A pure function extracts query filters, expands industry synonyms, and produces a deterministic search plan without using Ollama."
+    },
+    {
+      "id": "P3-T04",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Implement lexical and facet query templates",
+      "status": "todo",
+      "depends_on": [
+        "P3-T03",
+        "P1-T08"
+      ],
+      "files": [
+        "app/search/query_templates.py"
+      ],
+      "outcome": "Reusable builders generate filtered BM25, exact-boost, sort-aware, and aggregation query bodies against the read alias."
+    },
+    {
+      "id": "P3-T05",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Build deterministic search service",
+      "status": "todo",
+      "depends_on": [
+        "P3-T03",
+        "P3-T04",
+        "P2-T07"
+      ],
+      "files": [
+        "app/api/routes/search.py"
+      ],
+      "outcome": "The API can turn planner output into OpenSearch requests, map results into response items, and preserve stable pagination metadata."
+    },
+    {
+      "id": "P3-T06",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Expose POST /search",
+      "status": "todo",
+      "depends_on": [
+        "P3-T05"
+      ],
+      "files": [
+        "app/api/routes/search.py"
+      ],
+      "outcome": "The UI-facing search endpoint executes only the deterministic planner path and returns the shared search response schema."
+    },
+    {
+      "id": "P3-T07",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Expose POST /facets",
+      "status": "todo",
+      "depends_on": [
+        "P3-T05"
+      ],
+      "files": [
+        "app/api/routes/search.py"
+      ],
+      "outcome": "The UI-facing facets endpoint returns deterministic aggregations for industry, size, geography, and year-founded filters."
+    },
+    {
+      "id": "P3-T08",
+      "milestone_id": "phase-3",
+      "phase": "Phase 3",
+      "title": "Expose /health and /readiness",
+      "status": "todo",
+      "depends_on": [
+        "P3-T01",
+        "P2-T07"
+      ],
+      "files": [
+        "app/api/routes/search.py"
+      ],
+      "outcome": "The API reports process liveness, OpenSearch connectivity, index readiness, and agent dependency status without blocking the UI path."
+    },
+    {
+      "id": "P4-T01",
+      "milestone_id": "phase-4",
+      "phase": "Phase 4",
+      "title": "Create static UI shell",
+      "status": "todo",
+      "depends_on": [
+        "P3-T06",
+        "P3-T07"
+      ],
+      "files": [
+        "web/index.html"
+      ],
+      "outcome": "The UI has a search input, filter region, sort control, pagination area, and result container laid out for desktop and mobile."
+    },
+    {
+      "id": "P4-T02",
+      "milestone_id": "phase-4",
+      "phase": "Phase 4",
+      "title": "Implement client-side search state",
+      "status": "todo",
+      "depends_on": [
+        "P4-T01"
+      ],
+      "files": [
+        "web/app.js"
+      ],
+      "outcome": "The browser stores query text, selected filters, current page, and selected sort in a single state model."
+    },
+    {
+      "id": "P4-T03",
+      "milestone_id": "phase-4",
+      "phase": "Phase 4",
+      "title": "Wire debounced /search requests",
+      "status": "todo",
+      "depends_on": [
+        "P4-T02",
+        "P3-T06"
+      ],
+      "files": [
+        "web/app.js"
+      ],
+      "outcome": "Typing in the search box triggers debounced API calls, shows loading state, and handles request failures cleanly."
+    },
+    {
+      "id": "P4-T04",
+      "milestone_id": "phase-4",
+      "phase": "Phase 4",
+      "title": "Render result cards and empty states",
+      "status": "todo",
+      "depends_on": [
+        "P4-T03"
+      ],
+      "files": [
+        "web/app.js",
+        "web/index.html"
+      ],
+      "outcome": "Results show the core company fields, score, and match reasons, while empty and error states remain explicit and readable."
+    },
+    {
+      "id": "P4-T05",
+      "milestone_id": "phase-4",
+      "phase": "Phase 4",
+      "title": "Wire facets, pagination, and sort controls",
+      "status": "todo",
+      "depends_on": [
+        "P4-T03",
+        "P3-T07"
+      ],
+      "files": [
+        "web/app.js",
+        "web/index.html"
+      ],
+      "outcome": "The UI can fetch facet buckets, apply filters, change sort order, and paginate without losing current search state."
+    },
+    {
+      "id": "P4-T06",
+      "milestone_id": "phase-4",
+      "phase": "Phase 4",
+      "title": "Serve the static UI locally",
+      "status": "todo",
+      "depends_on": [
+        "P4-T01",
+        "P1-T02"
+      ],
+      "files": [
+        "infra/docker-compose.yml",
+        "Makefile"
+      ],
+      "outcome": "The local stack can serve the static UI alongside the API with a single developer command."
+    },
+    {
+      "id": "P5-T01",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Add Ollama runtime configuration",
+      "status": "todo",
+      "depends_on": [
+        "P1-T02",
+        "P3-T01"
+      ],
+      "files": [
+        "app/settings.py",
+        "infra/docker-compose.yml"
+      ],
+      "outcome": "The application can target a configurable Ollama base URL and model name, with sane defaults for local development."
+    },
+    {
+      "id": "P5-T02",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Automate Ollama model pull",
+      "status": "todo",
+      "depends_on": [
+        "P5-T01",
+        "P1-T05"
+      ],
+      "files": [
+        "infra/ollama/pull-model.sh"
+      ],
+      "outcome": "A repeatable script starts Ollama if needed, waits for readiness, and caches the local model required for agent requests."
+    },
+    {
+      "id": "P5-T03",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Create LangChain search agent",
+      "status": "todo",
+      "depends_on": [
+        "P5-T01",
+        "P3-T03"
+      ],
+      "files": [
+        "app/agent/search_agent.py"
+      ],
+      "outcome": "The agent is configured with ChatOllama, a search-specific system prompt, and an execution path that can call search tools."
+    },
+    {
+      "id": "P5-T04",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Implement agent tool set",
+      "status": "todo",
+      "depends_on": [
+        "P5-T03",
+        "P3-T04"
+      ],
+      "files": [
+        "app/agent/tools.py"
+      ],
+      "outcome": "The agent can invoke lexical search, hybrid search, and facet retrieval tools with typed arguments and deterministic OpenSearch execution."
+    },
+    {
+      "id": "P5-T05",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Add tool-call error middleware",
+      "status": "todo",
+      "depends_on": [
+        "P5-T04"
+      ],
+      "files": [
+        "app/agent/search_agent.py"
+      ],
+      "outcome": "Tool failures are returned to the agent as structured tool messages rather than uncaught exceptions."
+    },
+    {
+      "id": "P5-T06",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Add Ollama health probe and fallback gate",
+      "status": "todo",
+      "depends_on": [
+        "P5-T03",
+        "P3-T03"
+      ],
+      "files": [
+        "app/agent/search_agent.py"
+      ],
+      "outcome": "Agent requests check Ollama reachability up front and route directly to the deterministic planner when Ollama is down or times out."
+    },
+    {
+      "id": "P5-T07",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Expose POST /agent/search",
+      "status": "todo",
+      "depends_on": [
+        "P5-T04",
+        "P5-T06"
+      ],
+      "files": [
+        "app/api/routes/search.py"
+      ],
+      "outcome": "The agent endpoint returns the same response shape as /search plus explicit agent_path and fallback_used flags."
+    },
+    {
+      "id": "P5-T08",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Define semantic embedding field and validate ingest simulation",
+      "status": "todo",
+      "depends_on": [
+        "P1-T08",
+        "P2-T04"
+      ],
+      "files": [
+        "app/ingestion/normalize.py",
+        "infra/opensearch/bootstrap/03-create-pipelines.sh"
+      ],
+      "outcome": "The embedding source text is stable and the ingest pipeline can be verified with _simulate before real indexing runs."
+    },
+    {
+      "id": "P5-T09",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Implement hybrid BM25 plus neural retrieval",
+      "status": "todo",
+      "depends_on": [
+        "P5-T08",
+        "P3-T04"
+      ],
+      "files": [
+        "app/search/query_templates.py",
+        "app/search/search_pipeline.json"
+      ],
+      "outcome": "Hybrid retrieval combines exact boosts, full-text matching, explicit filters, and vector search with predictable score normalization."
+    },
+    {
+      "id": "P5-T10",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Handle zero-result agent responses",
+      "status": "todo",
+      "depends_on": [
+        "P5-T04",
+        "P5-T07"
+      ],
+      "files": [
+        "app/agent/search_agent.py",
+        "app/agent/tools.py"
+      ],
+      "outcome": "The agent returns a structured no-results response with a clear explanation and suggested query refinements instead of a silent empty list."
+    },
+    {
+      "id": "P5-T11",
+      "milestone_id": "phase-5",
+      "phase": "Phase 5",
+      "title": "Add search and agent observability",
+      "status": "todo",
+      "depends_on": [
+        "P5-T07",
+        "P5-T09"
+      ],
+      "files": [
+        "app/api/routes/search.py",
+        "app/settings.py",
+        "docs/agent-search.md"
+      ],
+      "outcome": "The system records request IDs, latency, zero-results, fallback activations, tool calls, OpenSearch timings, and optional LangSmith tracing."
+    },
+    {
+      "id": "P6-T01",
+      "milestone_id": "phase-6",
+      "phase": "Phase 6",
+      "title": "Select separate tag storage strategy",
+      "status": "todo",
+      "depends_on": [
+        "P2-T07",
+        "P3-T01"
+      ],
+      "files": [
+        "docs/architecture.md"
+      ],
+      "outcome": "The tagging system chooses a storage backend outside the core company index and records the rationale for that separation."
+    },
+    {
+      "id": "P6-T02",
+      "milestone_id": "phase-6",
+      "phase": "Phase 6",
+      "title": "Define scoped tag schema",
+      "status": "todo",
+      "depends_on": [
+        "P6-T01"
+      ],
+      "files": [
+        "app/models/tags.py"
+      ],
+      "outcome": "Tags are modeled with company_id, tag value, source, created_by, and user or team scope fields needed for multi-tenant ownership."
+    },
+    {
+      "id": "P6-T03",
+      "milestone_id": "phase-6",
+      "phase": "Phase 6",
+      "title": "Create tag storage objects and access layer",
+      "status": "todo",
+      "depends_on": [
+        "P6-T02"
+      ],
+      "files": [
+        "app/tags/repository.py",
+        "infra/"
+      ],
+      "outcome": "A separate tag repository can persist, update, and list tags without changing the base company index schema."
+    },
+    {
+      "id": "P6-T04",
+      "milestone_id": "phase-6",
+      "phase": "Phase 6",
+      "title": "Generate tag suggestions during ingestion",
+      "status": "todo",
+      "depends_on": [
+        "P2-T04",
+        "P6-T02"
+      ],
+      "files": [
+        "app/ingestion/normalize.py"
+      ],
+      "outcome": "The ingestion pipeline emits candidate tags derived from normalized industries, locations, and semantic company attributes, while keeping those tags outside the core company index and base company schema."
+    },
+    {
+      "id": "P6-T05",
+      "milestone_id": "phase-6",
+      "phase": "Phase 6",
+      "title": "Add tag APIs and search enrichment hook",
+      "status": "todo",
+      "depends_on": [
+        "P6-T03",
+        "P3-T06"
+      ],
+      "files": [
+        "app/api/routes/tags.py",
+        "app/api/routes/search.py"
+      ],
+      "outcome": "The system can create, list, and delete scoped tags and optionally attach tag metadata to company search results without reindexing companies."
+    }
+  ]
+}

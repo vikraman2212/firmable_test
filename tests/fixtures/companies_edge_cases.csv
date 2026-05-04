@@ -1,0 +1,8 @@
+,name,domain,year founded,industry,size range,locality,country,linkedin url,current employee estimate,total employee estimate
+1,blank name row,,2000.0,software,1-10,"austin, texas, united states",united states,linkedin.com/company/blank,10,20
+2, ,example.com,2000.0,software,1-10,"austin, texas, united states",united states,linkedin.com/company/space,10,20
+3,no domain,,2000.0,software,1-10,"austin, texas, united states",united states,linkedin.com/company/nodomain,10,20
+4,bad year,bad.com,notayear,software,1-10,"austin, texas, united states",united states,linkedin.com/company/badyear,10,20
+5,missing employees,me.com,1990.0,software,1-10,"austin, texas, united states",united states,linkedin.com/company/me,,
+6,locality two parts,twoparts.com,1990.0,software,1-10,"london, united kingdom",united kingdom,linkedin.com/company/twoparts,5,5
+7,locality one part,onepart.com,1990.0,software,1-10,germany,germany,linkedin.com/company/onepart,5,5
