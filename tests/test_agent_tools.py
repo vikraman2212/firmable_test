@@ -1,6 +1,8 @@
-"""Unit tests for app.agent.tools — SearchService and Tavily are mocked."""
+"""Unit tests for app.agent.tools — SearchService and web providers are mocked."""
 
 import json
+import sys
+import types
 from unittest.mock import MagicMock
 
 import pytest
@@ -104,6 +106,33 @@ def test_hybrid_search_returns_error_on_exception():
     assert result["total"] == 0
 
 
+def test_hybrid_search_normalizes_blank_string_filters_to_none():
+    svc = _mock_service()
+    svc.search.return_value = _make_search_response()
+    tools = {t.name: t for t in make_search_tools(svc)}
+
+    result = json.loads(
+        tools["hybrid_search"].run(
+            {
+                "query": "companies in melbourne",
+                "city": "melbourne",
+                "country": "",
+                "industry": "",
+                "region": "",
+                "size_range": "",
+            }
+        )
+    )
+
+    assert result["total"] == 1
+    req = svc.search.call_args.args[0]
+    assert req.city == "melbourne"
+    assert req.country is None
+    assert req.industry is None
+    assert req.region is None
+    assert req.size_range is None
+
+
 # ---------------------------------------------------------------------------
 # lexical_search
 # ---------------------------------------------------------------------------
@@ -149,13 +178,64 @@ def test_get_facets_returns_error_on_exception():
 # web_search
 # ---------------------------------------------------------------------------
 
-def test_web_search_returns_not_configured_when_no_key():
+def test_web_search_uses_duckduckgo_when_no_key(monkeypatch):
+    class FakeDDGS:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def text(self, query, max_results):
+            assert query == "Stripe fundraising"
+            assert max_results == 5
+            return [
+                {
+                    "title": "Stripe closes new funding round",
+                    "href": "https://example.com/stripe",
+                    "body": "Stripe raised new capital from investors.",
+                }
+            ]
+
+    monkeypatch.setitem(sys.modules, "duckduckgo_search", types.SimpleNamespace(DDGS=FakeDDGS))
+
     tools = {t.name: t for t in make_search_tools(_mock_service(), tavily_api_key="")}
 
     result = json.loads(tools["web_search"].run({"query": "Stripe fundraising"}))
 
-    assert "error" in result
-    assert "not configured" in result["error"]
+    assert result["provider"] == "duckduckgo"
+    assert result["total"] == 1
+    assert result["results"][0]["url"] == "https://example.com/stripe"
+
+
+def test_web_search_uses_tavily_when_key_present(monkeypatch):
+    class FakeTavilyClient:
+        def __init__(self, api_key):
+            assert api_key == "test-key"
+
+        def search(self, query, max_results, search_depth):
+            assert query == "Stripe fundraising"
+            assert max_results == 5
+            assert search_depth == "basic"
+            return {
+                "results": [
+                    {
+                        "title": "Stripe funding news",
+                        "url": "https://example.com/tavily-stripe",
+                        "content": "Tavily content",
+                    }
+                ]
+            }
+
+    monkeypatch.setitem(sys.modules, "tavily", types.SimpleNamespace(TavilyClient=FakeTavilyClient))
+
+    tools = {t.name: t for t in make_search_tools(_mock_service(), tavily_api_key="test-key")}
+
+    result = json.loads(tools["web_search"].run({"query": "Stripe fundraising"}))
+
+    assert result["provider"] == "tavily"
+    assert result["total"] == 1
+    assert result["results"][0]["url"] == "https://example.com/tavily-stripe"
 
 
 # ---------------------------------------------------------------------------

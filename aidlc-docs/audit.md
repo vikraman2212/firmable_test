@@ -609,3 +609,39 @@ green open .kibana_1 AN4dkoyjQz-q5kQsj4ZtQg 1 0 0 0 208b 208b"
 **Context**: CONSTRUCTION - bootstrap automation hardening for embedding model configuration
 
 ---
+
+## Plan Reconciliation Request
+
+**Timestamp**: 2026-05-06T00:00:00Z
+**User Input**: "spin up a different sub agent to do the project completion plan"
+**AI Response**: "Ran a separate Explore subagent to reconcile implemented repository work against the task breakdown and AI-DLC state, identify what is complete versus pending, and produce a concrete completion plan for the remaining take-home work."
+**Context**: CONSTRUCTION - planning reconciliation
+
+---
+
+## Planning Artifacts Update
+
+**Timestamp**: 2026-05-06T00:00:00Z
+**User Input**: "1"
+**AI Response**: "Updated `planning/firmable-task-breakdown.json` and `aidlc-docs/aidlc-state.md` to reflect the implemented intelligent-search lane: Phase 5 backend tasks were marked completed, the overall summary counts were recalculated, and the workflow status was moved from 'start the agent-search lane' to the remaining UI-validation and delivery-documentation work."
+**Context**: CONSTRUCTION - project plan reconciliation
+
+---
+
+## Agent Prompt Sanitization
+
+**Timestamp**: 2026-05-05T15:44:11Z
+**User Input**: "yes, sanitize using the prompts if possible"
+**AI Response**: "Tightened the agent system prompt and tool argument descriptions to explicitly forbid putting US states or provinces into `country`, require `region`-only mapping when a state is mentioned without an explicit country, and avoid setting `country` and `region` to the same value. Added a regression test covering the prompt guidance and validated with `./.venv/bin/pytest tests/test_search_agent.py -q` plus a live `/agent/search` SSE check. The live tool call changed from `country=\"california\"` to `country=null, region=\"california\"`, and the hybrid search tool returned `141` results for `information technology in california`."
+**Context**: CONSTRUCTION - agent prompt sanitization and live validation
+
+---
+
+## Dependency Installation Follow-up
+
+**Timestamp**: 2026-05-05T16:18:55Z
+**User Input**: "do uv add instead of pip install "
+**AI Response**: "Switched the dependency installation step to `uv add 'duckduckgo-search>=6.0'` so the free web-search fallback is installed through the project's dependency manager rather than `pip`. Re-validated the live no-key `web_search` tool path with `uv run`, and re-ran `uv run pytest tests/test_agent_tools.py -q` with all focused tests passing."
+**Context**: CONSTRUCTION - dependency management follow-up for agent web search
+
+---

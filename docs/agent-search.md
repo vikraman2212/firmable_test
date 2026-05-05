@@ -23,12 +23,12 @@ Client → POST /agent/search
 
 The agent uses a Thought → Action → Observation loop, choosing from four tools:
 
-| Tool             | When Used                                                          |
-| ---------------- | ------------------------------------------------------------------ |
-| `hybrid_search`  | Primary — natural language queries (BM25 + neural)                 |
-| `lexical_search` | Exact name/domain lookups (BM25-only)                              |
-| `get_facets`     | Exploring available industries/locations                           |
-| `web_search`     | External data when indexed results < 3 (requires `TAVILY_API_KEY`) |
+| Tool             | When Used                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| `hybrid_search`  | Primary — natural language queries (BM25 + neural)                                         |
+| `lexical_search` | Exact name/domain lookups (BM25-only)                                                      |
+| `get_facets`     | Exploring available industries/locations                                                   |
+| `web_search`     | External data when indexed results < 3 (uses Tavily when configured, otherwise DuckDuckGo) |
 
 ### SSE Event Types
 
@@ -43,19 +43,19 @@ event: done          {}                                   # stream complete
 
 ## Configuration
 
-| Env Var             | Default               | Description                                        |
-| ------------------- | --------------------- | -------------------------------------------------- |
-| `OLLAMA_BASE_URL`   | `http://ollama:11434` | Ollama server URL                                  |
-| `OLLAMA_MODEL`      | `gemma3:4b`           | Model to use                                       |
-| `OLLAMA_TIMEOUT`    | `30`                  | Inference timeout (seconds)                        |
-| `TAVILY_API_KEY`    | ``                    | Tavily API key — leave empty to disable web search |
-| `LANGSMITH_TRACING` | `false`               | Enable LangSmith trace logging                     |
-| `LANGSMITH_API_KEY` | ``                    | LangSmith API key                                  |
+| Env Var             | Default               | Description                                                               |
+| ------------------- | --------------------- | ------------------------------------------------------------------------- |
+| `OLLAMA_BASE_URL`   | `http://ollama:11434` | Ollama server URL                                                         |
+| `OLLAMA_MODEL`      | `gemma3:4b`           | Model to use                                                              |
+| `OLLAMA_TIMEOUT`    | `30`                  | Inference timeout (seconds)                                               |
+| `TAVILY_API_KEY`    | ``                    | Optional Tavily API key — when empty, web search falls back to DuckDuckGo |
+| `LANGSMITH_TRACING` | `false`               | Enable LangSmith trace logging                                            |
+| `LANGSMITH_API_KEY` | ``                    | LangSmith API key                                                         |
 
 ## Graceful Degradation
 
 1. **Ollama unreachable** → silent fallback to hybrid search; `fallback_used: true` in result event
-2. **Tavily key absent** → `web_search` tool returns a "not configured" error; agent proceeds without web search
+2. **Tavily key absent** → `web_search` falls back to DuckDuckGo without requiring an API key
 3. **Agent parsing error** → `handle_parsing_errors=True` in `AgentExecutor`; retries with "Invalid output" observation
 4. **Zero results** → `agent_explanation` in result event explains what was tried
 
@@ -73,7 +73,7 @@ event: done          {}                                   # stream complete
 - The agent is stateless and shared across all requests. `AgentExecutor` is thread-safe for concurrent reads.
 - For 30 RPS of agent traffic: Ollama's concurrency is bounded by GPU memory. Consider running multiple Ollama replicas behind a load balancer.
 - LangSmith tracing adds ~50 ms overhead per request. Keep disabled in production unless debugging.
-- Web search (Tavily free tier) is rate-limited to ~100 req/min. The agent only calls it as a last resort.
+- Web search defaults to DuckDuckGo without an API key. If Tavily is configured, the agent prefers it for more consistent structured results.
 
 ## Observability
 

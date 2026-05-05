@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.agent.search_agent import SearchAgent, _build_user_input, _probe_ollama, _sse
+from app.agent.search_agent import SearchAgent, _SYSTEM_PROMPT, _build_user_input, _probe_ollama, _sse
 from app.api.schemas import AgentSearchRequest, CompanyResult, SearchResponse
 
 
@@ -84,6 +84,12 @@ def test_build_user_input_with_industry():
     result = _build_user_input(req)
     assert "Healthcare" in result
     assert "Biotech" in result
+
+
+def test_system_prompt_blocks_state_as_country_and_uses_lowercase_it():
+    assert 'NEVER put a state or province name into the country field' in _SYSTEM_PROMPT
+    assert 'NEVER set country and region to the same value' in _SYSTEM_PROMPT
+    assert 'industry=["information technology"]' in _SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------
@@ -215,3 +221,63 @@ async def test_astream_uses_fallback_when_ollama_down():
     assert "done" in event_types
     # Should NOT have called the graph
     agent._graph.astream_events.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_astream_emits_preview_result_after_search_tool_returns_hits():
+    agent = _make_agent()
+    req = _make_request(query="companies in melbourne", page=2, page_size=5)
+
+    async def fake_astream_events(*args, **kwargs):
+        yield {
+            "event": "on_tool_start",
+            "name": "hybrid_search",
+            "data": {"input": {"query": "companies in melbourne"}},
+        }
+        yield {
+            "event": "on_tool_end",
+            "name": "hybrid_search",
+            "data": {
+                "output": json.dumps(
+                    {
+                        "hits": [
+                            {
+                                "company_id": "mel-1",
+                                "name": "Melbourne Tech Co",
+                                "industry": "Information Technology",
+                                "city": "Melbourne",
+                                "country": "Australia",
+                            }
+                        ],
+                        "total": 1,
+                    }
+                )
+            },
+        }
+        yield {
+            "event": "on_chain_end",
+            "data": {"output": {"messages": [MagicMock(content="Found 1 company in Melbourne.")] }},
+        }
+
+    agent._graph.astream_events = fake_astream_events
+
+    with patch("app.agent.search_agent._probe_ollama", new=AsyncMock(return_value=True)):
+        chunks = [c async for c in agent.astream(req)]
+
+    event_types = []
+    result_payloads = []
+    for chunk in chunks:
+        for line in chunk.split("\n"):
+            if line.startswith("event: "):
+                event_types.append(line[7:])
+        if chunk.startswith("event: result\n"):
+            data = chunk.split("\ndata: ", 1)[1].strip()
+            result_payloads.append(json.loads(data))
+
+    assert event_types[:3] == ["tool_call", "tool_result", "result"]
+    assert len(result_payloads) == 2
+    assert result_payloads[0]["total"] == 1
+    assert result_payloads[0]["page"] == 2
+    assert result_payloads[0]["page_size"] == 5
+    assert result_payloads[0]["agent_explanation"] is None
+    assert result_payloads[1]["agent_explanation"] == "Found 1 company in Melbourne."

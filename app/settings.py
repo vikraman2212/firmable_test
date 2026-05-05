@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2:3b"
     ollama_timeout: int = 30
 
-    # Tavily web search (leave empty to disable)
+    # Tavily web search (optional; when empty the agent falls back to DuckDuckGo)
     tavily_api_key: str = ""
 
     # LangSmith tracing (optional)

@@ -45,7 +45,10 @@ Guidelines:
     * Countries like "United States", "Australia", "UK" → country="united states" / country="australia" / country="united kingdom"
     * Cities like "San Francisco", "Austin" → city="san francisco" / city="austin"
     * NEVER put a state name into the city field
-- Map industry synonyms: "tech"/"software"/"IT" → industry=["Information Technology"]
+    * NEVER put a state or province name into the country field
+    * If the user mentions a US state and does not explicitly mention a country, set region only and leave country unset
+    * NEVER set country and region to the same value
+- Map industry synonyms: "tech"/"software"/"IT" → industry=["information technology"]
 - Valid size_range values (use exactly): "1 - 10", "11 - 50", "51 - 200", "201 - 500", \
 "501 - 1000", "1001 - 5000", "5001 - 10000", "10001+"
 - NEVER invent or hallucinate company results — only report what the tools return
@@ -76,6 +79,43 @@ async def _probe_ollama(base_url: str, timeout: int = 30) -> bool:
 
 def _sse(event_type: str, payload: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+
+
+def _agent_response_from_search_result(
+    request: AgentSearchRequest,
+    search_result: dict,
+    *,
+    took_ms: int,
+    tool_calls: list[str],
+    web_search_used: bool,
+    final_explanation: Optional[str] = None,
+) -> AgentSearchResponse:
+    items = [
+        CompanyResult(
+            company_id=hit.get("company_id", ""),
+            name=hit.get("name", ""),
+            domain=hit.get("domain"),
+            industry=hit.get("industry"),
+            size_range=hit.get("size_range"),
+            city=hit.get("city"),
+            region=hit.get("region"),
+            country=hit.get("country"),
+            year_founded=hit.get("year_founded"),
+            current_employee_estimate=hit.get("current_employee_estimate"),
+        )
+        for hit in search_result.get("hits", [])
+    ]
+    return AgentSearchResponse(
+        items=items,
+        total=search_result.get("total", 0),
+        page=request.page,
+        page_size=request.page_size,
+        took_ms=took_ms,
+        agent_path="web_enriched" if web_search_used else "agent",
+        fallback_used=False,
+        tool_calls=tool_calls,
+        agent_explanation=final_explanation,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +198,15 @@ class SearchAgent:
                     except (json.JSONDecodeError, TypeError):
                         pass
                     yield _sse("tool_result", {"tool": name, "total": total})
+                    if last_search_result and total > 0:
+                        preview_response = _agent_response_from_search_result(
+                            request,
+                            last_search_result,
+                            took_ms=int((time.monotonic() - t0) * 1000),
+                            tool_calls=tool_calls,
+                            web_search_used=web_search_used,
+                        )
+                        yield _sse("result", json.loads(preview_response.model_dump_json()))
 
                 elif kind == "on_chain_end":
                     output = event["data"].get("output")
@@ -180,42 +229,34 @@ class SearchAgent:
 
         # Build and emit the final structured result
         took_ms = int((time.monotonic() - t0) * 1000)
-        items: list[CompanyResult] = []
-        total = 0
-
-        if last_search_result:
-            total = last_search_result.get("total", 0)
-            items = [
-                CompanyResult(
-                    company_id=h.get("company_id", ""),
-                    name=h.get("name", ""),
-                    domain=h.get("domain"),
-                    industry=h.get("industry"),
-                    size_range=h.get("size_range"),
-                    city=h.get("city"),
-                    region=h.get("region"),
-                    country=h.get("country"),
-                    year_founded=h.get("year_founded"),
-                    current_employee_estimate=h.get("current_employee_estimate"),
-                )
-                for h in last_search_result.get("hits", [])
-            ]
+        total = last_search_result.get("total", 0) if last_search_result else 0
 
         if total == 0 and not final_explanation:
             final_explanation = (
                 "No companies matched your query. Try broader terms or removing some filters."
             )
 
-        response = AgentSearchResponse(
-            items=items,
-            total=total,
-            page=1,
-            page_size=len(items) if items else request.page_size,
-            took_ms=took_ms,
-            agent_path="web_enriched" if web_search_used else "agent",
-            fallback_used=False,
-            tool_calls=tool_calls,
-            agent_explanation=final_explanation,
+        response = (
+            _agent_response_from_search_result(
+                request,
+                last_search_result,
+                took_ms=took_ms,
+                tool_calls=tool_calls,
+                web_search_used=web_search_used,
+                final_explanation=final_explanation,
+            )
+            if last_search_result
+            else AgentSearchResponse(
+                items=[],
+                total=0,
+                page=request.page,
+                page_size=request.page_size,
+                took_ms=took_ms,
+                agent_path="web_enriched" if web_search_used else "agent",
+                fallback_used=False,
+                tool_calls=tool_calls,
+                agent_explanation=final_explanation,
+            )
         )
         yield _sse("result", json.loads(response.model_dump_json()))
         yield _sse("done", {})

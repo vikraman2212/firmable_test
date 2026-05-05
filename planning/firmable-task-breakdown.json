@@ -5,9 +5,9 @@
   "summary": {
     "total_milestones": 6,
     "total_tasks": 46,
-    "completed_tasks": 29,
+    "completed_tasks": 39,
     "in_progress_tasks": 1,
-    "todo_tasks": 16
+    "todo_tasks": 6
   },
   "milestones": [
     {
@@ -487,7 +487,7 @@
       "milestone_id": "phase-4",
       "phase": "Phase 4",
       "title": "Implement client-side search state",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P4-T01"
       ],
@@ -563,7 +563,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Add Ollama runtime configuration",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P1-T02",
         "P3-T01"
@@ -579,7 +579,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Automate Ollama model pull",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T01",
         "P1-T05"
@@ -594,7 +594,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Create LangChain search agent",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T01",
         "P3-T03"
@@ -609,7 +609,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Implement agent tool set",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T03",
         "P3-T04"
@@ -624,7 +624,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Add tool-call error middleware",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T04"
       ],
@@ -638,7 +638,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Add Ollama health probe and fallback gate",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T03",
         "P3-T03"
@@ -653,7 +653,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Expose POST /agent/search",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T04",
         "P5-T06"
@@ -700,7 +700,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Handle zero-result agent responses",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T04",
         "P5-T07"
@@ -716,7 +716,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Add search and agent observability",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T07",
         "P5-T09"

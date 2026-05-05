@@ -274,6 +274,7 @@ async def agent_search(request: AgentSearchRequest, agent: AgentDep):
         fallback_used = False
         tool_calls: list[str] = []
         total = 0
+        yield 'event: status\ndata: {"state":"started"}\n\n'
         async for chunk in agent.astream(request):
             # Parse result event to capture summary metrics for logging
             if chunk.startswith("event: result\n"):

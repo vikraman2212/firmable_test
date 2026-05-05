@@ -1,10 +1,10 @@
 """LangChain tool set for the Firmable search agent.
 
 Four tools:
-  - hybrid_search  : BM25 + neural retrieval (primary for natural language queries)
-  - lexical_search : BM25-only (for exact name/domain lookups)
-  - get_facets     : aggregation counts for filter exploration
-  - web_search     : Tavily-backed external search (only when indexed results < 3)
+    - hybrid_search  : BM25 + neural retrieval (primary for natural language queries)
+    - lexical_search : BM25-only (for exact name/domain lookups)
+    - get_facets     : aggregation counts for filter exploration
+    - web_search     : Tavily-backed external search with DuckDuckGo fallback
 """
 
 from __future__ import annotations
@@ -42,11 +42,18 @@ class _SearchInput(BaseModel):
             + ", ".join(f"'{v}'" for v in _VALID_SIZE_RANGES)
         ),
     )
-    country: Optional[str] = Field(default=None, description="Filter by country name (e.g. 'united states')")
+    country: Optional[str] = Field(
+        default=None,
+        description=(
+            "Filter by country name only (e.g. 'united states', 'australia'). "
+            "Do NOT use this for US states, provinces, or cities. "
+            "If the query says 'California', use region='california' and leave country unset unless a country is explicitly mentioned."
+        ),
+    )
     region: Optional[str] = Field(
         default=None,
         description="Filter by state/province/region (e.g. 'california', 'new york', 'ontario'). "
-                    "Use this for US states and provinces — NOT city.",
+                    "Use this for US states and provinces — NOT city or country.",
     )
     city: Optional[str] = Field(
         default=None,
@@ -55,6 +62,22 @@ class _SearchInput(BaseModel):
     )
     year_founded_gte: Optional[int] = Field(default=None, description="Minimum founding year")
     year_founded_lte: Optional[int] = Field(default=None, description="Maximum founding year")
+
+    @field_validator("country", "region", "city", mode="before")
+    @classmethod
+    def normalize_blank_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
+
+    @field_validator("industry", "size_range", mode="before")
+    @classmethod
+    def normalize_blank_list_or_string(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip("[] ")
+            return [stripped] if stripped else None
+        return value
 
     @field_validator("size_range", mode="before")
     @classmethod
@@ -193,27 +216,57 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
             return json.dumps({"error": str(exc)})
 
     def web_search_fn(query: str) -> str:
-        if not tavily_api_key:
-            return json.dumps(
-                {
-                    "error": "web search not configured (TAVILY_API_KEY not set)",
-                    "results": [],
-                }
-            )
         try:
-            from tavily import TavilyClient  # lazy import — only needed when key is set
+            if tavily_api_key:
+                from tavily import TavilyClient  # lazy import — only needed when key is set
 
-            client = TavilyClient(api_key=tavily_api_key)
-            response = client.search(query, max_results=5, search_depth="basic")
+                client = TavilyClient(api_key=tavily_api_key)
+                response = client.search(query, max_results=5, search_depth="basic")
+                results = [
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("url", ""),
+                        "content": r.get("content", "")[:500],
+                    }
+                    for r in response.get("results", [])
+                ]
+                return json.dumps(
+                    {
+                        "results": results,
+                        "total": len(results),
+                        "provider": "tavily",
+                    }
+                )
+
+            from duckduckgo_search import DDGS  # lazy import — only needed when no Tavily key is set
+
+            with DDGS() as client:
+                response = list(client.text(query, max_results=5))
             results = [
                 {
                     "title": r.get("title", ""),
-                    "url": r.get("url", ""),
-                    "content": r.get("content", "")[:500],
+                    "url": r.get("href", "") or r.get("url", ""),
+                    "content": (
+                        r.get("body", "") or r.get("snippet", "") or r.get("content", "")
+                    )[:500],
                 }
-                for r in response.get("results", [])
+                for r in response
             ]
-            return json.dumps({"results": results, "total": len(results)})
+            return json.dumps(
+                {
+                    "results": results,
+                    "total": len(results),
+                    "provider": "duckduckgo",
+                }
+            )
+        except ImportError as exc:
+            logger.warning("web_search provider import error: %s", exc)
+            return json.dumps(
+                {
+                    "error": "web search provider unavailable",
+                    "results": [],
+                }
+            )
         except Exception as exc:
             logger.warning("web_search tool error: %s", exc)
             return json.dumps({"error": str(exc), "results": []})
@@ -254,6 +307,7 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
             name="web_search",
             description=(
                 "Search the web for external company information (e.g. recent funding rounds, news). "
+                "Uses Tavily when configured, otherwise falls back to DuckDuckGo. "
                 "ONLY use this when hybrid_search returns fewer than 3 results. "
                 "Returns web article excerpts, not structured company records."
             ),

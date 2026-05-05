@@ -49,9 +49,9 @@
 
 ## Current Status
 
-- **Working Unit**: Phase 4 UI follow-up and Phase 5 hybrid retrieval
-- **Last Completed Step**: Hybrid runtime path validated, founded-year extraction added to the deterministic planner, and focused planner/search-service tests passing.
-- **Next Step**: Finish the remaining UI wiring for pagination and sort, then start the agent-search lane.
+- **Working Unit**: Phase 4 UI completion and delivery documentation
+- **Last Completed Step**: Phase 5 intelligent search was completed end to end on the backend, including the LangChain/Ollama agent, typed search tools, Ollama fallback gate, SSE `/agent/search` responses, prompt hardening for California-style location queries, structured observability, and a live Melbourne agent-stream fix that now emits `tool_result` and `result` before narrative tokens.
+- **Next Step**: Close the remaining Phase 4 UI gap around sort/debounced search behavior, finish end-to-end browser validation of the AI lane, and update delivery docs/runbooks.
 
 ## Completed Tasks
 
@@ -73,7 +73,17 @@
 - P3-T07: POST /facets endpoint + SearchService.facets() using firmable-facets-v1 template
 - P3-T08: /health (liveness) and /readiness (OpenSearch + index alias check) endpoints
 - P4-T01: Static UI shell in web/index.html
+- P4-T02: Client-side search state in web/app.js (query/filter DOM state, agentic mode persistence, current page state)
 - P4-T04: Result cards, error state, and empty state rendering in web/app.js
 - P4-T06: Static UI served locally from /ui through the API service
+- P5-T01: Ollama runtime configuration in app/settings.py and docker-compose wiring
+- P5-T02: Automated Ollama model pull script in infra/ollama/pull-model.sh and Makefile workflow
+- P5-T03: LangChain search agent with ChatOllama, system prompt, and SSE event streaming in app/agent/search_agent.py
+- P5-T04: Agent tool set for hybrid search, lexical search, facets, and optional web search in app/agent/tools.py
+- P5-T05: Structured tool-call error handling across agent tools and streamed error events
+- P5-T06: Ollama reachability probe and deterministic fallback gate in app/agent/search_agent.py
+- P5-T07: POST /agent/search endpoint with SSE streaming and agent metadata in app/api/main.py
 - P5-T08: Stable semantic embedding field built from normalized company attributes and indexed through the ingest pipeline
 - P5-T09: Hybrid BM25 + neural retrieval with request-parameter search pipeline normalization
+- P5-T10: Structured zero-result agent responses with query-refinement guidance
+- P5-T11: Search and agent observability with request IDs, latency logging, fallback/tool-call logging, and optional LangSmith hooks
