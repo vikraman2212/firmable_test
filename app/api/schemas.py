@@ -5,7 +5,7 @@ SearchResponse — POST /search response body
 CompanyResult  — single result item inside SearchResponse
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,9 +17,11 @@ class SearchRequest(BaseModel):
     industry: Optional[list[str]] = None
     size_range: Optional[list[str]] = None
     country: Optional[str] = None
+    region: Optional[str] = None
     city: Optional[str] = None
     year_founded_gte: Optional[int] = None
     year_founded_lte: Optional[int] = None
+    explain: bool = False
 
     # Pagination
     page: int = Field(default=1, ge=1)
@@ -37,6 +39,7 @@ class CompanyResult(BaseModel):
     country: Optional[str] = None
     year_founded: Optional[int] = None
     current_employee_estimate: Optional[int] = None
+    explanation: Optional[dict[str, Any]] = None
 
 
 class SearchResponse(BaseModel):
@@ -45,3 +48,67 @@ class SearchResponse(BaseModel):
     page: int
     page_size: int
     took_ms: int
+
+
+# ── Facets ────────────────────────────────────────────────────────────
+
+class FacetsRequest(BaseModel):
+    """Filter-only body for POST /facets — same filter fields as SearchRequest, no pagination."""
+
+    industry: Optional[list[str]] = None
+    size_range: Optional[list[str]] = None
+    country: Optional[str] = None
+    region: Optional[str] = None
+    city: Optional[str] = None
+    year_founded_gte: Optional[int] = None
+    year_founded_lte: Optional[int] = None
+
+
+class FacetBucket(BaseModel):
+    key: str
+    count: int
+
+
+class FacetsResponse(BaseModel):
+    industry: list[FacetBucket] = []
+    size_range: list[FacetBucket] = []
+    country: list[FacetBucket] = []
+    city: list[FacetBucket] = []
+    year_founded: list[FacetBucket] = []
+    tags: list[FacetBucket] = []  # Phase 6 placeholder — always empty for now
+
+
+# ── Agent search ──────────────────────────────────────────────────────
+
+class AgentSearchRequest(BaseModel):
+    """POST /agent/search — natural language query + optional filters."""
+
+    query: str
+
+    # Filters (same as SearchRequest)
+    industry: Optional[list[str]] = None
+    size_range: Optional[list[str]] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    year_founded_gte: Optional[int] = None
+    year_founded_lte: Optional[int] = None
+
+    # Pagination (used by fallback path)
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=20, ge=1, le=100)
+
+
+class AgentSearchResponse(BaseModel):
+    """Emitted as the 'result' SSE event from POST /agent/search."""
+
+    items: list[CompanyResult]
+    total: int
+    page: int
+    page_size: int
+    took_ms: int
+
+    # Agent metadata
+    agent_path: str  # "agent", "web_enriched", or "fallback"
+    fallback_used: bool = False
+    tool_calls: list[str] = []
+    agent_explanation: Optional[str] = None

@@ -7,10 +7,14 @@ DOCKER_COMPOSE ?= docker compose -f $(COMPOSE_FILE)
 REGISTER_MODEL_SCRIPT ?= infra/opensearch/bootstrap/01-register-model.sh
 DEPLOY_MODEL_SCRIPT ?= infra/opensearch/bootstrap/02-deploy-model.sh
 CREATE_PIPELINES_SCRIPT ?= infra/opensearch/bootstrap/03-create-pipelines.sh
+CREATE_SEARCH_TEMPLATES_SCRIPT ?= infra/opensearch/bootstrap/04-create-search-templates.sh
+CREATE_LOG_TEMPLATES_SCRIPT ?= infra/opensearch/bootstrap/05-create-log-templates.sh
+WRITE_MODEL_ENV_SCRIPT ?= infra/opensearch/bootstrap/06-write-model-env.sh
 OLLAMA_PULL_SCRIPT ?= infra/ollama/pull-model.sh
 OPENSEARCH_URL ?= http://localhost:9200
 OLLAMA_CONTAINER ?= firmable-ollama
 INGESTION_CONFIG ?= config/ingestion.toml
+ENV_FILE ?= .env
 CSV ?=
 PARQUET ?=
 SOFT_DELETE ?= false
@@ -35,6 +39,9 @@ infra-up: ## Start the local OpenSearch infrastructure and run ML bootstrap (mod
 	@bash $(REGISTER_MODEL_SCRIPT)
 	@bash $(DEPLOY_MODEL_SCRIPT)
 	@bash $(CREATE_PIPELINES_SCRIPT)
+	@bash $(CREATE_SEARCH_TEMPLATES_SCRIPT)
+	@bash $(CREATE_LOG_TEMPLATES_SCRIPT)
+	@ENV_FILE=$(ENV_FILE) bash $(WRITE_MODEL_ENV_SCRIPT)
 
 infra-down: ## Stop the local infrastructure and keep volumes
 	@$(DOCKER_COMPOSE) down --remove-orphans
@@ -55,12 +62,17 @@ script-check: ## Validate the OpenSearch bootstrap script syntax
 	@bash -n $(REGISTER_MODEL_SCRIPT)
 	@bash -n $(DEPLOY_MODEL_SCRIPT)
 	@bash -n $(CREATE_PIPELINES_SCRIPT)
+	@bash -n $(CREATE_SEARCH_TEMPLATES_SCRIPT)
+	@bash -n $(CREATE_LOG_TEMPLATES_SCRIPT)
+	@bash -n $(WRITE_MODEL_ENV_SCRIPT)
 	@bash -n $(OLLAMA_PULL_SCRIPT)
 
 bootstrap-model: ## Register and deploy the embedding model, create pipelines and index template
 	@bash $(REGISTER_MODEL_SCRIPT)
 	@bash $(DEPLOY_MODEL_SCRIPT)
 	@bash $(CREATE_PIPELINES_SCRIPT)
+	@bash $(CREATE_SEARCH_TEMPLATES_SCRIPT)
+	@ENV_FILE=$(ENV_FILE) bash $(WRITE_MODEL_ENV_SCRIPT)
 
 bootstrap: check-tools compose-config infra-up ## Start infra and run the OpenSearch ML bootstrap flow
 
@@ -81,3 +93,7 @@ test: ## Run the test suite with pytest
 	uv run pytest tests/ -v
 
 dev-setup: infra-up ollama-pull ## One-shot local onboarding: start stack, pull model, run ML bootstrap
+
+dev: ## Run the API locally with hot-reload — stops the docker API container first (UI at http://localhost:8000/ui)
+	@$(DOCKER_COMPOSE) stop api 2>/dev/null || true
+	$(PYTHON) -m uvicorn app.api.main:app --reload --port 8000

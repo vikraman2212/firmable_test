@@ -41,6 +41,7 @@ import pyarrow.parquet as pq
 from opensearchpy import OpenSearch, RequestError, TransportError
 
 from app.ingestion.config import DEFAULT_CONFIG_PATH, load_ingestion_config
+from app.logging_config import setup_logging
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -325,9 +326,11 @@ def _resolve_cli_config(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _configure_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
+    from app.settings import settings
+    setup_logging(
+        service="ingestion",
+        opensearch_url=settings.effective_log_opensearch_url,
+        opensearch_enabled=settings.log_opensearch_enabled,
     )
 
 

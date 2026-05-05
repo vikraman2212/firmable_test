@@ -477,3 +477,135 @@ update these answers to the clarifications"
 **Context**: CONSTRUCTION - P2-T07 Seed flow with alias swap — COMPLETE
 
 ---
+
+## Pagination Strategy Discussion
+
+**Timestamp**: 2026-05-04T14:54:32Z
+**User Input**: "I want to ideate on integrating the pagination for this UI. Should we use PIT from opensearch or from and size?
+Initially the search will bring in 1000s of document, and we want to paginate based on the page size."
+**AI Response**: "Reviewed the current UI, API schema, search-service stub, architecture doc, and task breakdown to compare page-number pagination (`from`/`size`) against Point in Time pagination. Recommendation: keep `from`/`size` only for shallow page-number browsing; prefer PIT with `search_after` for stable pagination across thousands of results and index updates, especially once deterministic search is implemented in Phase 3. Noted the contract impact: PIT requires cursor-style navigation rather than arbitrary page jumps unless the API stores per-page cursors."
+**Context**: Architecture discussion — search pagination design
+
+---
+
+## Documentation Update Request
+
+**Timestamp**: 2026-05-04T14:58:52Z
+**User Input**: "yes, do that. I'd likely stick onto from + size and make a note in the readme.md that it is not productionable with these settings"
+**AI Response**: "Checked for an existing README, found none, and updated the architecture documentation instead so the chosen pagination contract is documented in-repo. Added an explicit pagination strategy note to `docs/architecture.md` stating that the current UI/API contract uses `page` and `page_size` mapped to OpenSearch `from` and `size`, that this is acceptable for shallow demo pagination, and that it is not production-ready for deep pagination over thousands of results. Captured PIT plus `search_after` as the production upgrade path."
+**Context**: Documentation decision — pagination contract and limitation
+
+---
+
+## Documentation Target Adjustment
+
+**Timestamp**: 2026-05-04T14:58:52Z
+**User Input**: "maybe update architecture or one of the design documents if readme doesn't exist"
+**AI Response**: "Applied the pagination note to `docs/architecture.md` rather than creating a new top-level README so the current search contract and its limitation stay close to the API architecture description."
+**Context**: Documentation update scope
+
+---
+
+## Search Story Refinement
+
+**Timestamp**: 2026-05-05T04:37:49Z
+**User Input**: "using ai dlc, let's refine the story.
+yes, we will be using neural search, and we have planned for the normalization as well
+attached the task-breakdown.json for further clarification"
+**AI Response**: "Created a focused Phase 3 and Phase 5 search story refinement pack. Added a dedicated story plan, personas, and stories covering deterministic query planning, faceted and aggregation query behavior, normalized semantic-field readiness, hybrid BM25 plus neural retrieval, and explicit separation of tag facets from the base company index until the Phase 6 tagging system exists."
+**Context**: INCEPTION - User Stories refinement for search API and intelligent search
+
+---
+
+## Search Story Refinement Approval Prompt
+
+**Timestamp**: 2026-05-05T04:37:49Z
+**User Input**: ""
+**AI Response**: "Approval prompt issued: 'Search story refinement is complete. Review the new Phase 3 and Phase 5 search story pack and approve it as the basis for implementation, or request changes.'"
+**Context**: INCEPTION - User Stories approval prompt
+
+---
+
+## Search Story Refinement Update
+
+**Timestamp**: 2026-05-05T04:43:09Z
+**User Input**: "I also want to add that the search template should be created and associated with the infra during the startup or as a part of api initialization, so the api should be using the template rather than constructing the dsl query. "
+**AI Response**: "Updated the Phase 3 and Phase 5 search story pack and refinement plan so deterministic search and facet execution now rely on named OpenSearch search templates created during infra bootstrap or API initialization. The API contract was clarified to pass planner-generated parameters into those templates rather than assembling raw DSL bodies inline in request handlers."
+**Context**: INCEPTION - User Stories refinement for template-managed search execution
+
+---
+
+## Architecture Drift Follow-up and Agent Feasibility Research
+
+**Timestamp**: 2026-05-05T04:57:03Z
+**User Input**: "Before I approve, do you have any questions? I want you to read through the future plans and the architecture and detect drift from initial architecture"
+**AI Response**: "Reviewed the architecture against the phased plan, current ingestion identity implementation, and the current UI slice. Identified drift in the prior document around agent-first routing, debounced UI behavior, raw-source company identity, semantic-text composition, template-managed search execution, and premature tag-backend decisions. Updated `docs/architecture.md` so it now reflects the staged architecture: deterministic search first, stored OpenSearch templates managed by bootstrap or API initialization, explicit-submit UI behavior, hashed `company_id`, normalized `company_semantic_text`, deferred Phase 6 tag storage, and Phase 5 agent search as an optional LangChain plus ChatOllama enhancement rather than the primary path. Also completed an Ollama feasibility review and recorded the recommendation to keep LangChain plus ChatOllama as the preferred agent integration path for the take-home, with deterministic fallback preserved as the baseline."
+**Context**: Documentation alignment and architecture feasibility review
+
+---
+
+## Phase 3 Code Generation — Plan Request
+
+**Timestamp**: 2026-05-05T05:06:56Z
+**User Input**: "Based on the stories that we have refined, I would like to plan the phase 3. Update the project plan and use the aidlc flow. Use the plans and user-stories from aidlc-docs"
+**AI Response**: "Created Phase 3 code generation plan at `aidlc-docs/construction/plans/phase-3-search-api-code-generation-plan.md`. Plan covers stories P3-T03 through P3-T08 in 13 steps: (1) extend schemas with FacetsRequest/FacetsResponse, (2) create deterministic query planner, (3) register named OpenSearch templates via new bootstrap script, (4) create API-side template verification module, (5) wire template init into lifespan, (6) implement SearchService.search() against firmable-search-v1 template, (7) implement SearchService.facets() against firmable-facets-v1 template, (8) add POST /facets endpoint, (9) strengthen health/readiness, (10-11) unit tests for planner and service, (12-13) update status documents. Updated aidlc-state.md to reflect Phase 3 planning complete."
+**Context**: CONSTRUCTION phase — Code Generation Part 1 (Planning) for Phase 3 Search API
+
+---
+
+## Hybrid Search Debugging and Founded-Year Extraction
+
+**Timestamp**: 2026-05-05T13:18:00Z
+**User Input**: "yes, do that.
+let's try that and do that. but let's not spend a lot of time in that.
+We need ot move on to the next items that we planned."
+**AI Response**: "Added a minimal deterministic founded-year extractor to the search planner so phrases such as 'started during 1980' become an exact year_founded filter while leaving the residual query text available for ranking. Added narrow planner tests for extraction and override behavior and reran the focused planner and search-service suite successfully (28 passed)."
+**Context**: CONSTRUCTION - hybrid retrieval follow-up and deterministic query-planner improvement
+
+---
+
+## Running App Confirmation
+
+**Timestamp**: 2026-05-05T13:19:00Z
+**User Input**: "app is already running."
+**AI Response**: "Skipped local startup work, used the running process for a quick health/search check, confirmed /health was healthy, and found /search was returning 503 because the companies alias was not ready on that running instance. Switched to the next planned item and refreshed stale tracking artifacts to match the codebase: sync flow complete, hybrid retrieval complete, core UI shell/result rendering complete, and remaining UI pagination/sort work still in progress."
+**Context**: CONSTRUCTION - runtime validation shortcut and project tracking refresh
+
+---
+
+## UI Pagination Scope Reduction
+
+**Timestamp**: 2026-05-05T13:42:00Z
+**User Input**: "okay, let's do pagination. But I won't be worries about sort/state etc., let's drop debounce as well. "
+**AI Response**: "Scoped the remaining UI work down to pagination only. Added previous/next pagination controls to the static UI, sent page numbers in POST /search requests while continuing to read filters directly from the form DOM, and validated the behavior in-browser with mocked search responses showing Page 1 of 2 and Page 2 of 2 transitions. Deferred broader sort/state/debounce work per user direction."
+**Context**: CONSTRUCTION - Phase 4 UI follow-up with reduced scope
+
+---
+
+## Hybrid Search Model ID Diagnosis
+
+**Timestamp**: 2026-05-05T13:41:30Z
+**User Input**: "companies index already exists.
+health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
+green open .plugins-ml-model-group fBEU3vTbTNWvYvymIzylvA 1 0 1 0 13.4kb 13.4kb
+green open logs-ingestion-0505 NxND7WyWRWmJMqtulvDcMA 1 0 383 0 173kb 173kb
+green open companies V9KdZ3GZRdmJGKNZNOsqmw 1 0 91000 0 332.2mb 332.2mb
+green open .plugins-ml-config wpEpSZlBT7m6U5CpG0_38g 1 0 1 0 4kb 4kb
+green open top_queries-2026.05.05-84898 dfwYXy_OQrSJDMriK729kA 1 0 12 11 212.8kb 212.8kb
+green open .plugins-ml-model Zh4ULBpqSpak4p4AeSxSBg 1 0 15 1 170.4mb 170.4mb
+green open .plugins-ml-task rQBpYWcETFiUFYCK_tUrXg 1 0 2 0 45kb 45kb
+green open logs-api-0505 \_2TIzDSqReW1X0_QFDBKVQ 1 0 76 0 88.7kb 88.7kb
+green open .kibana_1 AN4dkoyjQz-q5kQsj4ZtQg 1 0 0 0 208b 208b"
+**AI Response**: "Verified that the cluster had a concrete `companies` index and traced the real search failure to a stale hardcoded `embedding_model_id`. Confirmed the active deployed model ID in OpenSearch was `X8g1-J0BAXjfWqP5f-AB`, updated runtime configuration to resolve the model ID from `/tmp/firmable-ml/model_id` by default, and confirmed live hybrid search returned results on a fresh API instance. Also corrected readiness so it accepts either the configured alias or a concrete index, which changed `/readiness` from a false 503 to a 200 for the current cluster shape."
+**Context**: CONSTRUCTION - hybrid retrieval runtime diagnosis and readiness correction
+
+---
+
+## Infra-Up Model ID Persistence
+
+**Timestamp**: 2026-05-05T13:49:00Z
+**User Input**: "the model_id should be written to the config everytime we do make infra-up. so we don't have this problem anymore"
+**AI Response**: "Added `infra/opensearch/bootstrap/06-write-model-env.sh` to sync the current deployed model ID from `/tmp/firmable-ml/model_id` into `.env` as `EMBEDDING_MODEL_ID`, then wired that script into both `make infra-up` and `make bootstrap-model`. Validated the Makefile script syntax with `make script-check` and executed the new sync script, which wrote `EMBEDDING_MODEL_ID=X8g1-J0BAXjfWqP5f-AB` into the local `.env`. Updated architecture documentation to include the new bootstrap step."
+**Context**: CONSTRUCTION - bootstrap automation hardening for embedding model configuration
+
+---

@@ -1,0 +1,217 @@
+"""Unit tests for app.agent.search_agent — httpx and AgentExecutor are mocked."""
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.agent.search_agent import SearchAgent, _build_user_input, _probe_ollama, _sse
+from app.api.schemas import AgentSearchRequest, CompanyResult, SearchResponse
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_request(**kwargs):
+    defaults = {"query": "tech companies in California"}
+    defaults.update(kwargs)
+    return AgentSearchRequest(**defaults)
+
+
+def _make_search_response(items=None):
+    items = items or [
+        CompanyResult(
+            company_id="c1",
+            name="Acme Corp",
+            domain="acme.com",
+            industry="Information Technology",
+            country="United States",
+            city="San Francisco",
+            size_range="51 - 200",
+        )
+    ]
+    return SearchResponse(
+        items=items, total=len(items), page=1, page_size=10, took_ms=8
+    )
+
+
+def _make_agent(service=None, settings=None):
+    if service is None:
+        service = MagicMock()
+    if settings is None:
+        settings = MagicMock()
+        settings.ollama_base_url = "http://ollama:11434"
+        settings.ollama_timeout = 30
+        settings.tavily_api_key = ""
+    graph = MagicMock()
+    return SearchAgent(graph=graph, service=service, settings=settings)
+
+
+# ---------------------------------------------------------------------------
+# _sse
+# ---------------------------------------------------------------------------
+
+def test_sse_format():
+    chunk = _sse("token", {"text": "hello"})
+    assert chunk == 'event: token\ndata: {"text": "hello"}\n\n'
+
+
+def test_sse_done():
+    chunk = _sse("done", {})
+    assert chunk.startswith("event: done\n")
+
+
+# ---------------------------------------------------------------------------
+# _build_user_input
+# ---------------------------------------------------------------------------
+
+def test_build_user_input_no_filters():
+    req = _make_request(query="tech startups")
+    assert _build_user_input(req) == "tech startups"
+
+
+def test_build_user_input_with_filters():
+    req = _make_request(query="fintech", country="United States", city="New York")
+    result = _build_user_input(req)
+    assert "fintech" in result
+    assert "country: United States" in result
+    assert "city: New York" in result
+
+
+def test_build_user_input_with_industry():
+    req = _make_request(query="startups", industry=["Healthcare", "Biotech"])
+    result = _build_user_input(req)
+    assert "Healthcare" in result
+    assert "Biotech" in result
+
+
+# ---------------------------------------------------------------------------
+# _probe_ollama
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_probe_ollama_returns_true_on_200():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_client = AsyncMock()
+    mock_client.get.return_value = mock_resp
+
+    with patch("app.agent.search_agent.httpx.AsyncClient") as MockClient:
+        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        result = await _probe_ollama("http://ollama:11434", timeout=5)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_probe_ollama_returns_false_on_connection_error():
+    with patch("app.agent.search_agent.httpx.AsyncClient") as MockClient:
+        MockClient.return_value.__aenter__ = AsyncMock(side_effect=Exception("refused"))
+        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        result = await _probe_ollama("http://ollama:11434", timeout=5)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_probe_ollama_returns_false_on_non_200():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 503
+    mock_client = AsyncMock()
+    mock_client.get.return_value = mock_resp
+
+    with patch("app.agent.search_agent.httpx.AsyncClient") as MockClient:
+        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        result = await _probe_ollama("http://ollama:11434", timeout=5)
+
+    assert result is False
+
+
+# ---------------------------------------------------------------------------
+# SearchAgent._fallback_stream
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_fallback_stream_emits_result_and_done():
+    service = MagicMock()
+    service.search.return_value = _make_search_response()
+    agent = _make_agent(service=service)
+    req = _make_request()
+
+    chunks = []
+    async for chunk in agent._fallback_stream(req, t0=0):
+        chunks.append(chunk)
+
+    event_types = []
+    for chunk in chunks:
+        lines = chunk.split("\n")
+        for line in lines:
+            if line.startswith("event: "):
+                event_types.append(line[7:])
+
+    assert "result" in event_types
+    assert "done" in event_types
+
+
+@pytest.mark.asyncio
+async def test_fallback_stream_sets_fallback_used_true():
+    service = MagicMock()
+    service.search.return_value = _make_search_response()
+    agent = _make_agent(service=service)
+    req = _make_request()
+
+    result_payload = None
+    async for chunk in agent._fallback_stream(req, t0=0):
+        if chunk.startswith("event: result\n"):
+            data = chunk.split("\ndata: ", 1)[1].strip()
+            result_payload = json.loads(data)
+
+    assert result_payload is not None
+    assert result_payload["fallback_used"] is True
+    assert result_payload["agent_path"] == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_fallback_stream_emits_error_on_service_failure():
+    service = MagicMock()
+    service.search.side_effect = RuntimeError("OpenSearch unavailable")
+    agent = _make_agent(service=service)
+    req = _make_request()
+
+    event_types = []
+    async for chunk in agent._fallback_stream(req, t0=0):
+        for line in chunk.split("\n"):
+            if line.startswith("event: "):
+                event_types.append(line[7:])
+
+    assert "error" in event_types
+    assert "done" in event_types
+
+
+# ---------------------------------------------------------------------------
+# SearchAgent.astream — fallback path when Ollama is down
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_astream_uses_fallback_when_ollama_down():
+    service = MagicMock()
+    service.search.return_value = _make_search_response()
+    agent = _make_agent(service=service)
+    req = _make_request()
+
+    with patch("app.agent.search_agent._probe_ollama", new=AsyncMock(return_value=False)):
+        chunks = [c async for c in agent.astream(req)]
+
+    event_types = []
+    for chunk in chunks:
+        for line in chunk.split("\n"):
+            if line.startswith("event: "):
+                event_types.append(line[7:])
+
+    assert "result" in event_types
+    assert "done" in event_types
+    # Should NOT have called the graph
+    agent._graph.astream_events.assert_not_called()

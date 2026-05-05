@@ -5,9 +5,9 @@
   "summary": {
     "total_milestones": 6,
     "total_tasks": 46,
-    "completed_tasks": 15,
-    "in_progress_tasks": 0,
-    "todo_tasks": 30
+    "completed_tasks": 29,
+    "in_progress_tasks": 1,
+    "todo_tasks": 16
   },
   "milestones": [
     {
@@ -338,7 +338,7 @@
       "milestone_id": "phase-2",
       "phase": "Phase 2",
       "title": "Implement incremental sync flow",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P2-T07"
       ],
@@ -352,7 +352,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Scaffold FastAPI application and runtime settings",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P1-T01",
         "P1-T05"
@@ -368,7 +368,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Define request and response contracts",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T01",
         "P2-T01"
@@ -384,7 +384,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Implement deterministic query planner",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T02"
       ],
@@ -398,7 +398,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Implement lexical and facet query templates",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T03",
         "P1-T08"
@@ -413,7 +413,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Build deterministic search service",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T03",
         "P3-T04",
@@ -429,7 +429,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Expose POST /search",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T05"
       ],
@@ -443,7 +443,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Expose POST /facets",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T05"
       ],
@@ -457,7 +457,7 @@
       "milestone_id": "phase-3",
       "phase": "Phase 3",
       "title": "Expose /health and /readiness",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T01",
         "P2-T07"
@@ -472,7 +472,7 @@
       "milestone_id": "phase-4",
       "phase": "Phase 4",
       "title": "Create static UI shell",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P3-T06",
         "P3-T07"
@@ -516,7 +516,7 @@
       "milestone_id": "phase-4",
       "phase": "Phase 4",
       "title": "Render result cards and empty states",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P4-T03"
       ],
@@ -531,7 +531,7 @@
       "milestone_id": "phase-4",
       "phase": "Phase 4",
       "title": "Wire facets, pagination, and sort controls",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "P4-T03",
         "P3-T07"
@@ -547,7 +547,7 @@
       "milestone_id": "phase-4",
       "phase": "Phase 4",
       "title": "Serve the static UI locally",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P4-T01",
         "P1-T02"
@@ -668,7 +668,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Define semantic embedding field and validate ingest simulation",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P1-T08",
         "P2-T04"
@@ -684,7 +684,7 @@
       "milestone_id": "phase-5",
       "phase": "Phase 5",
       "title": "Implement hybrid BM25 plus neural retrieval",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P5-T08",
         "P3-T04"

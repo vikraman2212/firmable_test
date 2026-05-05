@@ -84,6 +84,8 @@ services:
       - "8000:8000"
     environment:
       OPENSEARCH_URL: "http://opensearch:9200"
+      LOG_OPENSEARCH_ENABLED: "true"
+      LOG_OPENSEARCH_URL: "http://opensearch:9200"
     depends_on:
       opensearch:
         condition: service_healthy
@@ -93,19 +95,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-    networks:
-      - firmable
-
-  # Step 5: web placeholder — nginx:alpine on 3000, mapped to the web/ source directory.
-  # Replace with the final static build in P4-T06.
-  web:
-    image: nginx:alpine
-    container_name: firmable-web
-    ports:
-      - "3000:80"
-    depends_on:
-      api:
-        condition: service_started
     networks:
       - firmable
 

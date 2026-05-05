@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "opensearch-skills": {
+      "source": "opensearch-project/opensearch-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/opensearch-skills/SKILL.md",
+      "computedHash": "83d422140f59ec5d96fc4d4026863ba9ed78ae40b593a98416f69f91637fc7f4"
+    }
+  }
+}

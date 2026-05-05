@@ -246,6 +246,28 @@
     }
     .empty-state p { margin-top: 6px; font-size: 13px; }
 
+    .pagination {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fff;
+      border: 1px solid #e0e2e8;
+      border-radius: 8px;
+    }
+
+    .pagination-status {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .pagination-actions {
+      display: flex;
+      gap: 8px;
+    }
+
     /* ── Responsive ────────────────────────────────────────── */
     @media (max-width: 768px) {
       .layout {
@@ -254,6 +276,87 @@
       }
       .filters-panel { flex: none; width: 100%; }
       .results-panel { margin-left: 0; margin-top: 16px; }
+      .pagination {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .pagination-actions .btn {
+        flex: 1;
+      }
+    }
+
+    /* ── AI search mode ────────────────────────────────────── */
+    .search-mode-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .agentic-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      cursor: pointer;
+      user-select: none;
+      padding: 5px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #f9fafb;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .agentic-toggle:hover { background: #f3f4f6; border-color: #7c3aed; }
+    .agentic-toggle.active { background: #ede9fe; border-color: #7c3aed; color: #5b21b6; }
+
+    .agentic-toggle input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #7c3aed;
+      cursor: pointer;
+    }
+
+    .ai-status-notice {
+      font-size: 12px;
+      color: #92400e;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 4px;
+      padding: 3px 8px;
+    }
+
+    /* ── Reasoning panel ────────────────────────────────────── */
+    .reasoning-panel {
+      background: #0f0f1a;
+      border: 1px solid #2d2d4e;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+
+    .reasoning-header {
+      color: #a5b4fc;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .reasoning-content {
+      color: #c4c4e0;
+      font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 220px;
+      overflow-y: auto;
+      margin: 0;
     }
   </style>
 </head>
@@ -298,13 +401,11 @@
     <fieldset class="filter-section" style="border:none">
       <legend>Company Size</legend>
       <ul class="checkbox-list">
-        <li><label><input type="checkbox" name="size_range" value="1-10" />1 – 10</label></li>
-        <li><label><input type="checkbox" name="size_range" value="11-50" />11 – 50</label></li>
-        <li><label><input type="checkbox" name="size_range" value="51-200" />51 – 200</label></li>
-        <li><label><input type="checkbox" name="size_range" value="201-500" />201 – 500</label></li>
-        <li><label><input type="checkbox" name="size_range" value="501-1000" />501 – 1,000</label></li>
-        <li><label><input type="checkbox" name="size_range" value="1001-5000" />1,001 – 5,000</label></li>
-        <li><label><input type="checkbox" name="size_range" value="5001-10000" />5,001 – 10,000</label></li>
+        <li><label><input type="checkbox" name="size_range" value="51 - 200" />51 – 200</label></li>
+        <li><label><input type="checkbox" name="size_range" value="201 - 500" />201 – 500</label></li>
+        <li><label><input type="checkbox" name="size_range" value="501 - 1000" />501 – 1,000</label></li>
+        <li><label><input type="checkbox" name="size_range" value="1001 - 5000" />1,001 – 5,000</label></li>
+        <li><label><input type="checkbox" name="size_range" value="5001 - 10000" />5,001 – 10,000</label></li>
         <li><label><input type="checkbox" name="size_range" value="10001+" />10,001+</label></li>
       </ul>
     </fieldset>
@@ -363,9 +464,22 @@
 
   <!-- ── Results ───────────────────────────────────────────── -->
   <section class="results-panel" aria-live="polite">
+    <div class="search-mode-bar">
+      <label class="agentic-toggle" id="agentic-toggle-label">
+        <input type="checkbox" id="agentic-toggle" />
+        ✦ AI Search
+      </label>
+      <span id="ai-status" class="ai-status-notice" style="display:none">AI unavailable — showing hybrid results</span>
+    </div>
+
     <div class="results-header">
       <span id="result-count"></span>
       <span id="loading-indicator">Searching…</span>
+    </div>
+
+    <div id="reasoning-panel" class="reasoning-panel" style="display:none">
+      <div class="reasoning-header">AI is thinking…</div>
+      <pre id="reasoning-content" class="reasoning-content"></pre>
     </div>
 
     <div id="error-message" role="alert"></div>
@@ -374,6 +488,14 @@
       <div class="empty-state">
         <strong>Enter a query or select filters, then press Enter or Apply Filters.</strong>
         <p>Results will appear here.</p>
+      </div>
+    </div>
+
+    <div class="pagination" id="pagination" aria-label="Search result pagination">
+      <span class="pagination-status" id="pagination-status"></span>
+      <div class="pagination-actions">
+        <button type="button" class="btn btn-secondary" id="pagination-prev">Previous</button>
+        <button type="button" class="btn btn-secondary" id="pagination-next">Next</button>
       </div>
     </div>
   </section>

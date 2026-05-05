@@ -39,36 +39,45 @@ fi
 echo "Using MODEL_ID: ${MODEL_ID}"
 
 # ---------------------------------------------------------------------------
-# Deploy model
+# Deploy model (idempotent — skip if already DEPLOYED)
 # ---------------------------------------------------------------------------
-echo "Deploying model ${MODEL_ID}..."
+echo "Checking model state for ${MODEL_ID}..."
 
-deploy_response=$(curl -fsS -X POST "${OPENSEARCH_URL}/_plugins/_ml/models/${MODEL_ID}/_deploy" \
-  -H "Content-Type: application/json")
+model_info=$(curl -fsS "${OPENSEARCH_URL}/_plugins/_ml/models/${MODEL_ID}")
+model_state=$(echo "${model_info}" | jq -r '.model_state // empty')
 
-echo "Deploy response: ${deploy_response}"
+if [[ "${model_state}" == "DEPLOYED" ]]; then
+  echo "Model ${MODEL_ID} is already DEPLOYED — skipping deploy step"
+else
+  echo "Deploying model ${MODEL_ID} (current state: ${model_state:-unknown})..."
 
-DEPLOY_TASK_ID=$(echo "${deploy_response}" | jq -r '.task_id')
-if [[ "${DEPLOY_TASK_ID}" == "null" || -z "${DEPLOY_TASK_ID}" ]]; then
-  echo "Error: Could not get deploy task ID. Response: ${deploy_response}"
-  exit 1
-fi
+  deploy_response=$(curl -fsS -X POST "${OPENSEARCH_URL}/_plugins/_ml/models/${MODEL_ID}/_deploy" \
+    -H "Content-Type: application/json")
 
-echo "Waiting for deploy task ${DEPLOY_TASK_ID}..."
-while true; do
-  task_response=$(curl -fsS "${OPENSEARCH_URL}/_plugins/_ml/tasks/${DEPLOY_TASK_ID}")
-  state=$(echo "${task_response}" | jq -r '.state')
+  echo "Deploy response: ${deploy_response}"
 
-  if [[ "${state}" == "COMPLETED" ]]; then
-    echo "Model deployed successfully"
-    break
-  elif [[ "${state}" == "FAILED" ]]; then
-    echo "Error: Model deployment failed. Response: ${task_response}"
+  DEPLOY_TASK_ID=$(echo "${deploy_response}" | jq -r '.task_id')
+  if [[ "${DEPLOY_TASK_ID}" == "null" || -z "${DEPLOY_TASK_ID}" ]]; then
+    echo "Error: Could not get deploy task ID. Response: ${deploy_response}"
     exit 1
   fi
 
-  echo "  State: ${state} — waiting..."
-  sleep 2
-done
+  echo "Waiting for deploy task ${DEPLOY_TASK_ID}..."
+  while true; do
+    task_response=$(curl -fsS "${OPENSEARCH_URL}/_plugins/_ml/tasks/${DEPLOY_TASK_ID}")
+    state=$(echo "${task_response}" | jq -r '.state')
+
+    if [[ "${state}" == "COMPLETED" ]]; then
+      echo "Model deployed successfully"
+      break
+    elif [[ "${state}" == "FAILED" ]]; then
+      echo "Error: Model deployment failed. Response: ${task_response}"
+      exit 1
+    fi
+
+    echo "  State: ${state} — waiting..."
+    sleep 2
+  done
+fi
 
 echo "Model deployment complete — run 03-create-pipelines.sh next"

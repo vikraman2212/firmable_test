@@ -48,23 +48,24 @@ done
 echo "OpenSearch cluster is healthy"
 
 # ---------------------------------------------------------------------------
-# Register model group (idempotent — reuse if it already exists)
+# Register model group (idempotent — search before creating)
 # ---------------------------------------------------------------------------
-echo "Registering model group '${MODEL_GROUP_NAME}'..."
+echo "Checking for existing model group '${MODEL_GROUP_NAME}'..."
 
-register_response=$(curl -fsS -X POST "${OPENSEARCH_URL}/_plugins/_ml/model_groups/_register" \
+existing_group=$(curl -fsS -X POST "${OPENSEARCH_URL}/_plugins/_ml/model_groups/_search" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"name\": \"${MODEL_GROUP_NAME}\",
-    \"description\": \"A model group for local embedding models\"
-  }")
+  -d "{\"query\":{\"term\":{\"name.keyword\":\"${MODEL_GROUP_NAME}\"}},\"size\":1}")
 
-echo "Model group response: ${register_response}"
+MODEL_GROUP_ID=$(echo "${existing_group}" | jq -r '.hits.hits[0]._id // empty')
 
-if echo "${register_response}" | grep -q "already being used by a model group with ID"; then
-  MODEL_GROUP_ID=$(echo "${register_response}" | sed -n 's/.*ID: \([^.]*\)\..*/\1/p')
+if [[ -n "${MODEL_GROUP_ID}" ]]; then
   echo "Reusing existing model group: ${MODEL_GROUP_ID}"
 else
+  echo "Registering new model group '${MODEL_GROUP_NAME}'..."
+  register_response=$(curl -fsS -X POST "${OPENSEARCH_URL}/_plugins/_ml/model_groups/_register" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${MODEL_GROUP_NAME}\",\"description\":\"A model group for local embedding models\"}")
+  echo "Model group response: ${register_response}"
   MODEL_GROUP_ID=$(echo "${register_response}" | jq -r '.model_group_id')
   if [[ "${MODEL_GROUP_ID}" == "null" || -z "${MODEL_GROUP_ID}" ]]; then
     echo "Error: Could not obtain model group ID. Response: ${register_response}"
@@ -74,63 +75,85 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Register model
+# Register model (idempotent — check state file, then verify liveness)
 # ---------------------------------------------------------------------------
-echo "Registering model '${MODEL_GROUP_NAME}' v${MODEL_VERSION}..."
+echo "Checking for existing model '${MODEL_GROUP_NAME}' v${MODEL_VERSION}..."
 
-model_payload=$(jq -n \
-  --arg name "${MODEL_GROUP_NAME}" \
-  --arg version "${MODEL_VERSION}" \
-  --arg model_group_id "${MODEL_GROUP_ID}" \
-  --arg desc "${MODEL_DESCRIPTION}" \
-  '{
-    name: $name,
-    version: $version,
-    model_group_id: $model_group_id,
-    description: $desc,
-    model_format: "TORCH_SCRIPT",
-    model_config: {
-      model_type: "bert",
-      embedding_dimension: 384,
-      framework_type: "sentence_transformers",
-      pooling_mode: "MEAN",
-      normalize_results: true
-    }
-  }')
+MODEL_ID=""
+STATE_FILE="${STATE_DIR}/model_id"
 
-model_response=$(curl -fsS -X POST "${OPENSEARCH_URL}/_plugins/_ml/models/_register" \
-  -H "Content-Type: application/json" \
-  -d "${model_payload}")
-
-echo "Model registration response: ${model_response}"
-
-MODEL_TASK_ID=$(echo "${model_response}" | jq -r '.task_id')
-if [[ "${MODEL_TASK_ID}" == "null" || -z "${MODEL_TASK_ID}" ]]; then
-  echo "Error: Could not get model registration task ID. Response: ${model_response}"
-  exit 1
+if [[ -f "${STATE_FILE}" ]]; then
+  cached_id=$(cat "${STATE_FILE}")
+  if [[ -n "${cached_id}" ]]; then
+    # Verify the model still exists in OpenSearch
+    http_code=$(curl -o /dev/null -w "%{http_code}" -sS \
+      "${OPENSEARCH_URL}/_plugins/_ml/models/${cached_id}")
+    if [[ "${http_code}" == "200" ]]; then
+      MODEL_ID="${cached_id}"
+      echo "Reusing existing model: ${MODEL_ID}"
+    else
+      echo "Cached model ${cached_id} is gone (HTTP ${http_code}) — registering fresh"
+    fi
+  fi
 fi
 
-echo "Waiting for model registration task ${MODEL_TASK_ID}..."
-while true; do
-  task_response=$(curl -fsS "${OPENSEARCH_URL}/_plugins/_ml/tasks/${MODEL_TASK_ID}")
-  state=$(echo "${task_response}" | jq -r '.state')
+if [[ -z "${MODEL_ID}" ]]; then
+  echo "Registering model '${MODEL_GROUP_NAME}' v${MODEL_VERSION}..."
 
-  if [[ "${state}" == "COMPLETED" ]]; then
-    MODEL_ID=$(echo "${task_response}" | jq -r '.model_id')
-    echo "Model registered with ID: ${MODEL_ID}"
-    break
-  elif [[ "${state}" == "FAILED" ]]; then
-    echo "Error: Model registration failed. Response: ${task_response}"
+  model_payload=$(jq -n \
+    --arg name "${MODEL_GROUP_NAME}" \
+    --arg version "${MODEL_VERSION}" \
+    --arg model_group_id "${MODEL_GROUP_ID}" \
+    --arg desc "${MODEL_DESCRIPTION}" \
+    '{
+      name: $name,
+      version: $version,
+      model_group_id: $model_group_id,
+      description: $desc,
+      model_format: "TORCH_SCRIPT",
+      model_config: {
+        model_type: "bert",
+        embedding_dimension: 384,
+        framework_type: "sentence_transformers",
+        pooling_mode: "MEAN",
+        normalize_results: true
+      }
+    }')
+
+  model_response=$(curl -fsS -X POST "${OPENSEARCH_URL}/_plugins/_ml/models/_register" \
+    -H "Content-Type: application/json" \
+    -d "${model_payload}")
+
+  echo "Model registration response: ${model_response}"
+
+  MODEL_TASK_ID=$(echo "${model_response}" | jq -r '.task_id')
+  if [[ "${MODEL_TASK_ID}" == "null" || -z "${MODEL_TASK_ID}" ]]; then
+    echo "Error: Could not get model registration task ID. Response: ${model_response}"
     exit 1
   fi
 
-  echo "  State: ${state} — waiting..."
-  sleep 2
-done
+  echo "Waiting for model registration task ${MODEL_TASK_ID}..."
+  while true; do
+    task_response=$(curl -fsS "${OPENSEARCH_URL}/_plugins/_ml/tasks/${MODEL_TASK_ID}")
+    state=$(echo "${task_response}" | jq -r '.state')
 
-if [[ -z "${MODEL_ID:-}" ]]; then
-  echo "Error: Could not obtain model ID"
-  exit 1
+    if [[ "${state}" == "COMPLETED" ]]; then
+      MODEL_ID=$(echo "${task_response}" | jq -r '.model_id')
+      echo "Model registered with ID: ${MODEL_ID}"
+      break
+    elif [[ "${state}" == "FAILED" ]]; then
+      echo "Error: Model registration failed. Response: ${task_response}"
+      exit 1
+    fi
+
+    echo "  State: ${state} — waiting..."
+    sleep 2
+  done
+
+  if [[ -z "${MODEL_ID:-}" ]]; then
+    echo "Error: Could not obtain model ID"
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------
