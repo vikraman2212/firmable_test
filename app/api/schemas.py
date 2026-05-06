@@ -7,7 +7,7 @@ CompanyResult  — single result item inside SearchResponse
 
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SearchRequest(BaseModel):
@@ -112,3 +112,38 @@ class AgentSearchResponse(BaseModel):
     fallback_used: bool = False
     tool_calls: list[str] = []
     agent_explanation: Optional[str] = None
+
+
+# ── Tags ──────────────────────────────────────────────────────────────
+
+class TagCreateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tag_name: str = Field(alias="tagName", min_length=1)
+    company_id: str = Field(min_length=1)
+
+    @field_validator("tag_name", "company_id")
+    @classmethod
+    def _validate_non_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value must not be blank")
+        return stripped
+
+
+class TagCreateResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tag_name: str = Field(alias="tagName")
+    tag_name_normalized: str
+    company_id: str
+    user_id: str
+
+
+class TagLookupResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tag_name: str = Field(alias="tagName")
+    tag_name_normalized: str
+    items: list[CompanyResult]
+    total: int

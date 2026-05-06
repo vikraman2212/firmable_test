@@ -206,7 +206,7 @@ def seed(
         logger.info("Creating target index", extra={"index_name": target_index})
         client.indices.create(index=target_index)
     except RequestError as exc:
-        if exc.error == "index_already_exists_exception":
+        if exc.error in {"index_already_exists_exception", "resource_already_exists_exception"}:
             logger.warning(
                 "Index already exists, skipping creation",
                 extra={"index_name": target_index},

@@ -101,6 +101,19 @@ class SearchService:
             tags=[],
         )
 
+    def get_companies_by_ids(self, company_ids: list[str]) -> list[CompanyResult]:
+        """Resolve company documents by company_id without going through ranked search."""
+        if not company_ids:
+            return []
+
+        unique_ids = list(dict.fromkeys(company_ids))
+        response = self._client.mget(index=self._index, body={"ids": unique_ids})
+        return [
+            self._map_document(doc)
+            for doc in response.get("docs", [])
+            if doc.get("found")
+        ]
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
@@ -112,9 +125,12 @@ class SearchService:
         return settings.keyword_search_template_id
 
     def _map_hit(self, hit: dict) -> CompanyResult:
-        src = hit.get("_source", {})
+        return self._map_document(hit)
+
+    def _map_document(self, document: dict) -> CompanyResult:
+        src = document.get("_source", {})
         return CompanyResult(
-            company_id=hit.get("_id", src.get("company_id", "")),
+            company_id=document.get("_id", src.get("company_id", "")),
             name=src.get("name", ""),
             domain=src.get("domain"),
             industry=src.get("industry"),
@@ -124,7 +140,7 @@ class SearchService:
             country=src.get("country"),
             year_founded=src.get("year_founded"),
             current_employee_estimate=src.get("current_employee_estimate"),
-            explanation=hit.get("_explanation"),
+            explanation=document.get("_explanation"),
         )
 
     @staticmethod

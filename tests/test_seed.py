@@ -343,6 +343,22 @@ class TestSeedErrors:
         with pytest.raises(FileNotFoundError):
             seed(tmp_path / "nonexistent.parquet", client=client)
 
+    def test_existing_index_error_is_treated_as_reusable(self, tmp_path):
+        from opensearchpy import RequestError
+
+        parquet = _make_parquet(tmp_path, [_sample_doc()])
+        client = _make_mock_client()
+        client.indices.create.side_effect = RequestError(
+            400,
+            "resource_already_exists_exception",
+            {"error": {"type": "resource_already_exists_exception"}},
+        )
+
+        result = seed(parquet, client=client, index_name="companies-test")
+
+        assert result.index_name == "companies-test"
+        assert client.bulk.called
+
     def test_opensearch_error_on_create_index_propagates(self, tmp_path):
         from opensearchpy import RequestError
         parquet = _make_parquet(tmp_path, [_sample_doc()])

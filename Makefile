@@ -10,6 +10,7 @@ CREATE_PIPELINES_SCRIPT ?= infra/opensearch/bootstrap/03-create-pipelines.sh
 CREATE_SEARCH_TEMPLATES_SCRIPT ?= infra/opensearch/bootstrap/04-create-search-templates.sh
 CREATE_LOG_TEMPLATES_SCRIPT ?= infra/opensearch/bootstrap/05-create-log-templates.sh
 WRITE_MODEL_ENV_SCRIPT ?= infra/opensearch/bootstrap/06-write-model-env.sh
+CREATE_TAG_INDEX_SCRIPT ?= infra/opensearch/bootstrap/07-create-tag-index.sh
 OLLAMA_PULL_SCRIPT ?= infra/ollama/pull-model.sh
 OPENSEARCH_URL ?= http://localhost:9200
 OLLAMA_CONTAINER ?= firmable-ollama
@@ -35,11 +36,12 @@ compose-config: ## Validate the Docker Compose configuration
 	@$(DOCKER_COMPOSE) config >/dev/null
 
 infra-up: ## Start the local OpenSearch infrastructure and run ML bootstrap (model, pipelines, index template)
-	@$(DOCKER_COMPOSE) up -d
+	@$(DOCKER_COMPOSE) up -d --build
 	@bash $(REGISTER_MODEL_SCRIPT)
 	@bash $(DEPLOY_MODEL_SCRIPT)
 	@bash $(CREATE_PIPELINES_SCRIPT)
 	@bash $(CREATE_SEARCH_TEMPLATES_SCRIPT)
+	@bash $(CREATE_TAG_INDEX_SCRIPT)
 	@bash $(CREATE_LOG_TEMPLATES_SCRIPT)
 	@ENV_FILE=$(ENV_FILE) bash $(WRITE_MODEL_ENV_SCRIPT)
 
@@ -65,6 +67,7 @@ script-check: ## Validate the OpenSearch bootstrap script syntax
 	@bash -n $(CREATE_SEARCH_TEMPLATES_SCRIPT)
 	@bash -n $(CREATE_LOG_TEMPLATES_SCRIPT)
 	@bash -n $(WRITE_MODEL_ENV_SCRIPT)
+	@bash -n $(CREATE_TAG_INDEX_SCRIPT)
 	@bash -n $(OLLAMA_PULL_SCRIPT)
 
 bootstrap-model: ## Register and deploy the embedding model, create pipelines and index template
@@ -72,6 +75,7 @@ bootstrap-model: ## Register and deploy the embedding model, create pipelines an
 	@bash $(DEPLOY_MODEL_SCRIPT)
 	@bash $(CREATE_PIPELINES_SCRIPT)
 	@bash $(CREATE_SEARCH_TEMPLATES_SCRIPT)
+	@bash $(CREATE_TAG_INDEX_SCRIPT)
 	@ENV_FILE=$(ENV_FILE) bash $(WRITE_MODEL_ENV_SCRIPT)
 
 bootstrap: check-tools compose-config infra-up ## Start infra and run the OpenSearch ML bootstrap flow

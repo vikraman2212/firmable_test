@@ -11,6 +11,7 @@ MODEL_DESCRIPTION="${MODEL_DESCRIPTION:-Sentence transformer model for generatin
 PIPELINE_NAME="${PIPELINE_NAME:-rfp-description-embedding-pipeline}"
 SOURCE_FIELD="${SOURCE_FIELD:-description}"
 TARGET_FIELD="${TARGET_FIELD:-description_vector}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -203,4 +204,8 @@ if echo "${pipeline_response}" | grep -q '"acknowledged":true'; then
 else
   echo "Failed to create pipeline. Response was: ${pipeline_response}"
   exit 1
+fi
+
+if [[ -f "${SCRIPT_DIR}/07-create-tag-index.sh" ]]; then
+  OPENSEARCH_URL="${OPENSEARCH_URL}" TAG_INDEX_NAME="${TAG_INDEX_NAME:-company_tags}" bash "${SCRIPT_DIR}/07-create-tag-index.sh"
 fi

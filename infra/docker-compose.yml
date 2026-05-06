@@ -82,6 +82,8 @@ services:
     container_name: firmable-api
     ports:
       - "8000:8000"
+    volumes:
+      - /tmp/firmable-ml:/tmp/firmable-ml:ro
     environment:
       OPENSEARCH_URL: "http://opensearch:9200"
       LOG_OPENSEARCH_ENABLED: "true"

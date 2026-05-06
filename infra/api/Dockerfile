@@ -13,6 +13,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy application source
 COPY app/ ./app/
+COPY web/ ./web/
 
 ENV PATH="/app/.venv/bin:$PATH"
 

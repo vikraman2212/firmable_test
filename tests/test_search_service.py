@@ -209,3 +209,38 @@ def test_facets_handles_missing_aggregations():
     assert resp.country == []
     assert resp.city == []
     assert resp.year_founded == []
+
+
+# ---------------------------------------------------------------------------
+# SearchService.get_companies_by_ids()
+# ---------------------------------------------------------------------------
+
+def test_get_companies_by_ids_uses_mget_and_preserves_requested_order():
+    svc, client = _make_service()
+    client.mget.return_value = {
+        "docs": [
+            {"_id": "id2", "found": True, "_source": {"name": "Beta Co"}},
+            {"_id": "id1", "found": True, "_source": {"name": "Acme Co"}},
+        ]
+    }
+
+    items = svc.get_companies_by_ids(["id2", "id1", "id2"])
+
+    assert client.mget.call_args.kwargs["body"] == {"ids": ["id2", "id1"]}
+    assert [item.company_id for item in items] == ["id2", "id1"]
+    assert [item.name for item in items] == ["Beta Co", "Acme Co"]
+
+
+def test_get_companies_by_ids_skips_missing_documents():
+    svc, client = _make_service()
+    client.mget.return_value = {
+        "docs": [
+            {"_id": "id1", "found": True, "_source": {"name": "Acme Co"}},
+            {"_id": "missing", "found": False},
+        ]
+    }
+
+    items = svc.get_companies_by_ids(["id1", "missing"])
+
+    assert len(items) == 1
+    assert items[0].company_id == "id1"

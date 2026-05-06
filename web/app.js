@@ -17,6 +17,8 @@
   const SEARCH_URL      = API_BASE + "/search";
   const FACETS_URL      = API_BASE + "/facets";
   const AGENT_SEARCH_URL = API_BASE + "/agent/search";
+  const TAG_CREATE_URL  = API_BASE + "/api/tag/";
+  const TAG_LOOKUP_BASE_URL = API_BASE + "/tag/";
 
   // ── DOM refs ──────────────────────────────────────────────
   const form            = document.getElementById("search-form");
@@ -31,6 +33,12 @@
   const paginationStatus = document.getElementById("pagination-status");
   const prevBtn         = document.getElementById("pagination-prev");
   const nextBtn         = document.getElementById("pagination-next");
+  const tagInput        = document.getElementById("tag-input");
+  const applyTagBtn     = document.getElementById("apply-tag-btn");
+  const tagLookupInput  = document.getElementById("tag-lookup-input");
+  const loadTagBtn      = document.getElementById("load-tag-btn");
+  const tagSelectionStatus = document.getElementById("tag-selection-status");
+  const tagFeedback     = document.getElementById("tag-feedback");
   const agenticToggle   = document.getElementById("agentic-toggle");
   const agenticLabel    = document.getElementById("agentic-toggle-label");
   const aiStatus        = document.getElementById("ai-status");
@@ -38,6 +46,7 @@
   const reasoningContent = document.getElementById("reasoning-content");
 
   var currentPage = 1;
+  var selectedCompanyIds = new Set();
 
   // ── Agentic mode state (persisted in localStorage) ────────
   var agenticMode = localStorage.getItem("firmable_agentic") === "true";
@@ -107,10 +116,45 @@
     }
   });
 
+  resultList.addEventListener("change", function (event) {
+    if (!event.target || event.target.getAttribute("data-role") !== "company-select") return;
+    var companyId = event.target.getAttribute("data-company-id");
+    if (!companyId) return;
+    if (event.target.checked) {
+      selectedCompanyIds.add(companyId);
+    } else {
+      selectedCompanyIds.delete(companyId);
+    }
+    updateTagSelectionState();
+  });
+
+  tagInput.addEventListener("input", function () {
+    updateTagSelectionState();
+  });
+
+  applyTagBtn.addEventListener("click", function () {
+    applyTagToSelection();
+  });
+
+  loadTagBtn.addEventListener("click", function () {
+    loadTaggedCompanies();
+  });
+
+  tagLookupInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      loadTaggedCompanies();
+    }
+  });
+
   // ── Clear All ─────────────────────────────────────────────
   clearBtn.addEventListener("click", function () {
     form.reset();
     currentPage = 1;
+    resetTagSelection();
+    clearTagFeedback();
+    tagInput.value = "";
+    tagLookupInput.value = "";
     resultList.innerHTML = emptyStateHTML("Enter a query or select filters, then press Enter or Apply Filters.", "Results will appear here.");
     resultCount.textContent = "";
     renderPagination(0, 1, 20);
@@ -342,6 +386,8 @@
     var page = typeof data.page === "number" ? data.page : currentPage;
     var pageSize = typeof data.page_size === "number" ? data.page_size : items.length || 20;
 
+    resetTagSelection();
+
     if (!data.agent_explanation) {
       resultCount.textContent = total.toLocaleString() + " result" + (total !== 1 ? "s" : "") + " found";
     }
@@ -362,39 +408,162 @@
     var lines = [];
 
     lines.push('<div class="company-card">');
-    lines.push('  <div class="card-name">' + esc(c.name) + '</div>');
+    lines.push('  <div class="card-top">');
+    lines.push('    <label class="company-selector" aria-label="Select ' + esc(c.name) + '">');
+    lines.push('      <input type="checkbox" data-role="company-select" data-company-id="' + esc(c.company_id) + '" data-testid="company-select-' + esc(c.company_id) + '" />');
+    lines.push('    </label>');
+    lines.push('    <div class="card-main">');
+    lines.push('      <div class="card-name">' + esc(c.name) + '</div>');
 
     if (c.domain) {
-      lines.push('  <div class="card-domain">' + esc(c.domain) + '</div>');
+      lines.push('      <div class="card-domain">' + esc(c.domain) + '</div>');
     }
 
-    lines.push('  <div class="card-meta">');
+    lines.push('      <div class="card-meta">');
 
     if (c.industry) {
-      lines.push('    <span><strong>Industry</strong> ' + esc(c.industry) + '</span>');
+      lines.push('        <span><strong>Industry</strong> ' + esc(c.industry) + '</span>');
     }
 
     var location = buildLocation(c.city, c.region, c.country);
     if (location) {
-      lines.push('    <span><strong>Location</strong> ' + esc(location) + '</span>');
+      lines.push('        <span><strong>Location</strong> ' + esc(location) + '</span>');
     }
 
     if (c.year_founded) {
-      lines.push('    <span><strong>Founded</strong> ' + esc(String(c.year_founded)) + '</span>');
+      lines.push('        <span><strong>Founded</strong> ' + esc(String(c.year_founded)) + '</span>');
     }
 
     if (c.size_range) {
-      lines.push('    <span><strong>Size</strong> ' + esc(c.size_range) + '</span>');
+      lines.push('        <span><strong>Size</strong> ' + esc(c.size_range) + '</span>');
     }
 
     if (typeof c.current_employee_estimate === "number") {
-      lines.push('    <span><strong>Employees</strong> ' + c.current_employee_estimate.toLocaleString() + '</span>');
+      lines.push('        <span><strong>Employees</strong> ' + c.current_employee_estimate.toLocaleString() + '</span>');
     }
 
+    lines.push('      </div>');
+    lines.push('    </div>');
     lines.push('  </div>');
     lines.push('</div>');
 
     return lines.join("\n");
+  }
+
+  function updateTagSelectionState() {
+    var selectedCount = selectedCompanyIds.size;
+    if (selectedCount) {
+      tagSelectionStatus.textContent = selectedCount + " compan" + (selectedCount === 1 ? "y" : "ies") + " selected for tagging.";
+    } else {
+      tagSelectionStatus.textContent = "Select companies from the current results to tag them.";
+    }
+    applyTagBtn.disabled = selectedCount === 0 || tagInput.value.trim() === "";
+  }
+
+  function resetTagSelection() {
+    selectedCompanyIds = new Set();
+    updateTagSelectionState();
+  }
+
+  function clearTagFeedback() {
+    tagFeedback.textContent = "";
+    tagFeedback.className = "tag-feedback";
+  }
+
+  function showTagFeedback(message, kind) {
+    tagFeedback.textContent = message;
+    tagFeedback.className = "tag-feedback" + (kind ? " tag-feedback-" + kind : "");
+  }
+
+  function applyTagToSelection() {
+    var tagName = tagInput.value.trim();
+    var companyIds = Array.from(selectedCompanyIds);
+    if (!tagName || !companyIds.length) return;
+
+    applyTagBtn.disabled = true;
+    clearTagFeedback();
+
+    Promise.allSettled(companyIds.map(function (companyId) {
+      return fetch(TAG_CREATE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagName: tagName, company_id: companyId }),
+      }).then(function (res) {
+        if (!res.ok) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            throw new Error(data.detail || ("Request failed: " + res.status));
+          });
+        }
+        return res.json();
+      });
+    })).then(function (results) {
+      var successCount = results.filter(function (result) { return result.status === "fulfilled"; }).length;
+      var failureCount = results.length - successCount;
+
+      if (failureCount) {
+        showTagFeedback("Tagged " + successCount + " compan" + (successCount === 1 ? "y" : "ies") + "; " + failureCount + " request" + (failureCount === 1 ? "" : "s") + " failed.", "error");
+      } else {
+        showTagFeedback("Applied tag '" + tagName + "' to " + successCount + " compan" + (successCount === 1 ? "y" : "ies") + ".", "success");
+      }
+
+      tagInput.value = "";
+      Array.from(resultList.querySelectorAll('[data-role="company-select"]')).forEach(function (checkbox) {
+        checkbox.checked = false;
+      });
+      resetTagSelection();
+    }).catch(function (err) {
+      showTagFeedback("Tagging failed: " + (err.message || "unexpected error"), "error");
+      updateTagSelectionState();
+    });
+  }
+
+  function loadTaggedCompanies() {
+    var tagName = tagLookupInput.value.trim();
+    if (!tagName) return;
+
+    showLoading("Loading tagged companies...");
+    hideError();
+    clearTagFeedback();
+
+    fetch(TAG_LOOKUP_BASE_URL + encodeURIComponent(tagName))
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            throw new Error(data.detail || ("Request failed: " + res.status));
+          });
+        }
+        return res.json();
+      })
+      .then(function (data) {
+        hideLoading();
+        renderTagLookupResults(data);
+        showTagFeedback("Loaded tag '" + (data.tagName || tagName) + "'.", "success");
+      })
+      .catch(function (err) {
+        hideLoading();
+        showTagFeedback("Could not load tag: " + (err.message || "unexpected error"), "error");
+      });
+  }
+
+  function renderTagLookupResults(data) {
+    resetTagSelection();
+    currentPage = 1;
+    hideAIStatus();
+    hideReasoningPanel();
+
+    var items = data.items || [];
+    resultCount.textContent = (data.total || 0).toLocaleString() + " tagged compan" + ((data.total || 0) === 1 ? "y" : "ies") + " for '" + (data.tagName || "") + "'";
+    renderPagination(0, 1, 20);
+
+    if (!items.length) {
+      resultList.innerHTML = emptyStateHTML(
+        "No companies found for this tag.",
+        "Try another tag or add tags from the search results first."
+      );
+      return;
+    }
+
+    resultList.innerHTML = items.map(cardHTML).join("");
   }
 
   function buildLocation(city, region, country) {

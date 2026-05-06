@@ -4,7 +4,7 @@
 
 - **Project Type**: Greenfield
 - **Start Date**: 2026-05-03T12:57:03Z
-- **Current Stage**: CONSTRUCTION - Code Generation
+- **Current Stage**: OPERATIONS - Placeholder
 
 ## Workspace State
 
@@ -41,17 +41,24 @@
 - [ ] Infrastructure Design (skipped)
 - [x] Code Generation - Planning
 - [x] Code Generation - Generation
-- [ ] Build and Test
+- [x] Build and Test
 
 ### 🟡 OPERATIONS PHASE
 
 - [ ] Operations
 
+## Extension Configuration
+
+| Extension              | Enabled | Decided At            |
+| ---------------------- | ------- | --------------------- |
+| Security Baseline      | No      | Requirements Analysis |
+| Property-Based Testing | No      | Requirements Analysis |
+
 ## Current Status
 
-- **Working Unit**: Phase 4 UI completion and delivery documentation
-- **Last Completed Step**: Phase 5 intelligent search was completed end to end on the backend, including the LangChain/Ollama agent, typed search tools, Ollama fallback gate, SSE `/agent/search` responses, prompt hardening for California-style location queries, structured observability, and a live Melbourne agent-stream fix that now emits `tool_result` and `result` before narrative tokens.
-- **Next Step**: Close the remaining Phase 4 UI gap around sort/debounced search behavior, finish end-to-end browser validation of the AI lane, and update delivery docs/runbooks.
+- **Working Unit**: Operations placeholder
+- **Last Completed Step**: Build and Test stage approved. The instruction pack is complete and the current workflow has advanced into the placeholder Operations stage.
+- **Next Step**: No additional automated Operations work is defined in the current AIDLC ruleset.
 
 ## Completed Tasks
 

@@ -22,7 +22,11 @@ from app.api.schemas import (
     FacetsResponse,
     SearchRequest,
     SearchResponse,
+    TagCreateRequest,
+    TagCreateResponse,
+    TagLookupResponse,
 )
+from app.tags.repository import TagRepository
 from app.logging_config import setup_logging
 from app.search.service import SearchService
 from app.search.templates import ensure_search_templates
@@ -147,6 +151,17 @@ def get_search_service() -> SearchService:
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
 
 
+def get_tag_repository() -> TagRepository:
+    return TagRepository(
+        client=_client,
+        index_name=settings.tag_index_name,
+        default_user_id=settings.default_tag_user_id,
+    )
+
+
+TagRepositoryDep = Annotated[TagRepository, Depends(get_tag_repository)]
+
+
 def get_agent() -> "SearchAgent":
     if _agent is None:
         raise HTTPException(status_code=503, detail="Agent unavailable")
@@ -261,6 +276,62 @@ def facets(request: FacetsRequest, svc: SearchServiceDep):
         },
     )
     return result
+
+
+@app.post("/api/tag/", response_model=TagCreateResponse)
+def create_tag(request: TagCreateRequest, repo: TagRepositoryDep):
+    """Create or upsert a personal tag record for a single company."""
+    try:
+        record = repo.create_tag(tag_name=request.tag_name, company_id=request.company_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except OSConnectionError:
+        raise HTTPException(status_code=503, detail="Search backend unavailable")
+    except OSNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=_not_found_detail(exc))
+
+    logger.info(
+        "tag_create",
+        extra={
+            "tag_name_normalized": record.tag_name_normalized,
+            "company_id": record.company_id,
+            "user_id": record.user_id,
+        },
+    )
+    return TagCreateResponse(
+        tag_name=record.tag_name_display,
+        tag_name_normalized=record.tag_name_normalized,
+        company_id=record.company_id,
+        user_id=record.user_id,
+    )
+
+
+@app.get("/tag/{tag_name}", response_model=TagLookupResponse)
+def get_tagged_companies(tag_name: str, repo: TagRepositoryDep, svc: SearchServiceDep):
+    """Resolve tagged companies by tag name using the tag index plus company lookup."""
+    try:
+        lookup = repo.find_tagged_company_ids(tag_name)
+        items = svc.get_companies_by_ids(lookup.company_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except OSConnectionError:
+        raise HTTPException(status_code=503, detail="Search backend unavailable")
+    except OSNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=_not_found_detail(exc))
+
+    logger.info(
+        "tag_lookup",
+        extra={
+            "tag_name_normalized": lookup.tag_name_normalized,
+            "company_count": len(items),
+        },
+    )
+    return TagLookupResponse(
+        tag_name=lookup.tag_name_display,
+        tag_name_normalized=lookup.tag_name_normalized,
+        items=items,
+        total=len(items),
+    )
 
 
 @app.post("/agent/search")

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     opensearch_url: str = "http://localhost:9200"
     index_name: str = "companies"
+    tag_index_name: str = "company_tags"
     search_template_id: str = "firmable-search-hybrid-v1"
     keyword_search_template_id: str = "firmable-search-v1"
     hybrid_search_pipeline: str = "hybrid-search-pipeline"
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     hybrid_neural_k: int = 100
     default_page_size: int = 20
     max_page_size: int = 100
+    default_tag_user_id: str = "local-user"
 
     # Ollama LLM backend
     ollama_base_url: str = "http://ollama:11434"

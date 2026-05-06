@@ -5,9 +5,9 @@
   "summary": {
     "total_milestones": 6,
     "total_tasks": 46,
-    "completed_tasks": 39,
+    "completed_tasks": 43,
     "in_progress_tasks": 1,
-    "todo_tasks": 6
+    "todo_tasks": 2
   },
   "milestones": [
     {
@@ -100,7 +100,7 @@
       "id": "phase-6",
       "name": "Tagging system",
       "phase": "Phase 6",
-      "goal": "Keep tags outside the core company index and add scoped tag storage, suggestion generation, and API hooks.",
+      "goal": "Keep tags outside the core company index and add scoped tag storage, API hooks, and a simple static-UI tagging flow, with suggestion generation deferred.",
       "task_count": 5,
       "task_ids": [
         "P6-T01",
@@ -733,7 +733,7 @@
       "milestone_id": "phase-6",
       "phase": "Phase 6",
       "title": "Select separate tag storage strategy",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P2-T07",
         "P3-T01"
@@ -748,29 +748,30 @@
       "milestone_id": "phase-6",
       "phase": "Phase 6",
       "title": "Define scoped tag schema",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P6-T01"
       ],
       "files": [
         "app/models/tags.py"
       ],
-      "outcome": "Tags are modeled with company_id, tag value, source, created_by, and user or team scope fields needed for multi-tenant ownership."
+      "outcome": "Tags are modeled as skinny personal records with normalized tag value, display tag value, company_id, user_id, and timestamps while leaving room for future scope expansion."
     },
     {
       "id": "P6-T03",
       "milestone_id": "phase-6",
       "phase": "Phase 6",
       "title": "Create tag storage objects and access layer",
-      "status": "todo",
+      "status": "completed",
       "depends_on": [
         "P6-T02"
       ],
       "files": [
         "app/tags/repository.py",
-        "infra/"
+        "infra/opensearch/bootstrap/07-create-tag-index.sh",
+        "Makefile"
       ],
-      "outcome": "A separate tag repository can persist, update, and list tags without changing the base company index schema."
+      "outcome": "A separate tag repository and bootstrap-managed tag index can upsert and resolve personal tags without changing the base company index schema."
     },
     {
       "id": "P6-T04",
@@ -791,17 +792,19 @@
       "id": "P6-T05",
       "milestone_id": "phase-6",
       "phase": "Phase 6",
-      "title": "Add tag APIs and search enrichment hook",
-      "status": "todo",
+      "title": "Add tag APIs and UI-backed tag retrieval",
+      "status": "completed",
       "depends_on": [
         "P6-T03",
         "P3-T06"
       ],
       "files": [
-        "app/api/routes/tags.py",
-        "app/api/routes/search.py"
+        "app/api/main.py",
+        "app/api/schemas.py",
+        "web/index.html",
+        "web/app.js"
       ],
-      "outcome": "The system can create, list, and delete scoped tags and optionally attach tag metadata to company search results without reindexing companies."
+      "outcome": "The system can create personal tags through `POST /api/tag/`, retrieve tagged companies through `GET /tag/{tagName}`, and drive both flows from the existing static results UI without altering the standard `/search` ranking path."
     }
   ]
 }
