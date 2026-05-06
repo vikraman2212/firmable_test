@@ -197,7 +197,7 @@ def test_web_search_uses_duckduckgo_when_no_key(monkeypatch):
                 }
             ]
 
-    monkeypatch.setitem(sys.modules, "duckduckgo_search", types.SimpleNamespace(DDGS=FakeDDGS))
+    monkeypatch.setitem(sys.modules, "ddgs", types.SimpleNamespace(DDGS=FakeDDGS))
 
     tools = {t.name: t for t in make_search_tools(_mock_service(), tavily_api_key="")}
 

@@ -238,7 +238,7 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
                     }
                 )
 
-            from duckduckgo_search import DDGS  # lazy import — only needed when no Tavily key is set
+            from ddgs import DDGS  # lazy import — only needed when no Tavily key is set
 
             with DDGS() as client:
                 response = list(client.text(query, max_results=5))

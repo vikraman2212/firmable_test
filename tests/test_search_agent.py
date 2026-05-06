@@ -90,6 +90,7 @@ def test_system_prompt_blocks_state_as_country_and_uses_lowercase_it():
     assert 'NEVER put a state or province name into the country field' in _SYSTEM_PROMPT
     assert 'NEVER set country and region to the same value' in _SYSTEM_PROMPT
     assert 'industry=["information technology"]' in _SYSTEM_PROMPT
+    assert 'CompanyResult response model fields: company_id, name, domain, industry, size_range, city, region, country, year_founded, current_employee_estimate, explanation' in _SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------

@@ -51,6 +51,8 @@ Guidelines:
 - Map industry synonyms: "tech"/"software"/"IT" → industry=["information technology"]
 - Valid size_range values (use exactly): "1 - 10", "11 - 50", "51 - 200", "201 - 500", \
 "501 - 1000", "1001 - 5000", "5001 - 10000", "10001+"
+- When you describe returned companies, align with the CompanyResult response model fields: company_id, name, domain, industry, size_range, city, region, country, year_founded, current_employee_estimate, explanation
+- Do not invent additional company fields outside that response model
 - NEVER invent or hallucinate company results — only report what the tools return
 - Always provide a final answer summarising what was found
 """
