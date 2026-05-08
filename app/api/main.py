@@ -9,12 +9,14 @@ from typing import TYPE_CHECKING, Annotated, Any
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
 from opensearchpy import OpenSearch
 from opensearchpy.exceptions import ConnectionError as OSConnectionError, NotFoundError as OSNotFoundError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
+
 
 from app.api.schemas import (
     AgentSearchRequest,
@@ -34,6 +36,8 @@ from app.settings import settings
 
 logger = logging.getLogger(__name__)
 
+from dotenv import load_dotenv
+load_dotenv()
 
 if TYPE_CHECKING:
     from app.agent.search_agent import SearchAgent
@@ -191,6 +195,18 @@ def _not_found_detail(exc: OSNotFoundError) -> str:
     return "Search dependency not found"
 
 
+# ── Shared OpenSearch exception handlers ─────────────────────────────
+
+@app.exception_handler(OSConnectionError)
+async def handle_os_connection_error(request: StarletteRequest, exc: OSConnectionError):
+    return JSONResponse(status_code=503, content={"detail": "Search backend unavailable"})
+
+
+@app.exception_handler(OSNotFoundError)
+async def handle_os_not_found_error(request: StarletteRequest, exc: OSNotFoundError):
+    return JSONResponse(status_code=503, content={"detail": _not_found_detail(exc)})
+
+
 # ── Routes ────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -231,12 +247,7 @@ def readiness():
 @app.post("/search", response_model=SearchResponse)
 def search(request: SearchRequest, svc: SearchServiceDep):
     """Search companies by query and filters."""
-    try:
-        result = svc.search(request)
-    except OSConnectionError:
-        raise HTTPException(status_code=503, detail="Search backend unavailable")
-    except OSNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=_not_found_detail(exc))
+    result = svc.search(request)
     logger.info(
         "search",
         extra={
@@ -262,12 +273,7 @@ def search(request: SearchRequest, svc: SearchServiceDep):
 @app.post("/facets", response_model=FacetsResponse)
 def facets(request: FacetsRequest, svc: SearchServiceDep):
     """Return aggregated facet counts for the given filters."""
-    try:
-        result = svc.facets(request)
-    except OSConnectionError:
-        raise HTTPException(status_code=503, detail="Search backend unavailable")
-    except OSNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=_not_found_detail(exc))
+    result = svc.facets(request)
     logger.info(
         "facets",
         extra={
@@ -285,10 +291,6 @@ def create_tag(request: TagCreateRequest, repo: TagRepositoryDep):
         record = repo.create_tag(tag_name=request.tag_name, company_id=request.company_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    except OSConnectionError:
-        raise HTTPException(status_code=503, detail="Search backend unavailable")
-    except OSNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=_not_found_detail(exc))
 
     logger.info(
         "tag_create",
@@ -314,10 +316,6 @@ def get_tagged_companies(tag_name: str, repo: TagRepositoryDep, svc: SearchServi
         items = svc.get_companies_by_ids(lookup.company_ids)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    except OSConnectionError:
-        raise HTTPException(status_code=503, detail="Search backend unavailable")
-    except OSNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=_not_found_detail(exc))
 
     logger.info(
         "tag_lookup",

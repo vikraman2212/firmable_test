@@ -252,3 +252,15 @@ def test_search_response_to_json_has_note_below_threshold():
     resp = _make_search_response(total=0)
     data = json.loads(_search_response_to_json(resp))
     assert "note" in data
+
+
+def test_search_response_to_json_zero_results_note_is_actionable():
+    resp = _make_search_response(total=0)
+    data = json.loads(_search_response_to_json(resp))
+    assert data["note"] == "Only 0 result(s) found — call web_search now before final answer"
+
+
+def test_search_response_to_json_low_nonzero_note_suggests_broader_coverage():
+    resp = _make_search_response(total=1)
+    data = json.loads(_search_response_to_json(resp))
+    assert "broader coverage" in data["note"]

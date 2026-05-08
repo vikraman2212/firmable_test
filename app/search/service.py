@@ -30,58 +30,30 @@ class SearchService:
     def search(self, request: SearchRequest) -> SearchResponse:
         """Execute a search request using the default template for query searches."""
         plan = build_search_plan(request)
-        model_id = settings.effective_embedding_model_id
         params = plan.to_params()
+        pagination_depth = max(settings.hybrid_neural_k, plan.from_ + plan.size)
         params.update(
             {
-                "model_id": model_id,
-                "neural_k": max(settings.hybrid_neural_k, plan.from_ + plan.size),
+                "model_id": settings.effective_embedding_model_id,
+                "neural_k": pagination_depth,
+                "pagination_depth": pagination_depth,
             }
         )
-        t0 = time.monotonic()
-        request_params = None
-        if plan.query_text:
-            request_params = {"search_pipeline": settings.hybrid_search_pipeline}
-        response = self._client.search_template(
-            body={"id": self._resolve_search_template_id(plan.query_text), "params": params},
-            index=self._index,
-            params=request_params,
-        )
-        took_ms = int((time.monotonic() - t0) * 1000)
-
-        hits = response.get("hits", {})
-        total_value = hits.get("total", {})
-        total = total_value.get("value", 0) if isinstance(total_value, dict) else int(total_value)
-        items = [self._map_hit(h) for h in hits.get("hits", [])]
-
-        return SearchResponse(
-            items=items,
-            total=total,
-            page=request.page,
-            page_size=request.page_size,
-            took_ms=took_ms,
+        pipeline = settings.hybrid_search_pipeline if plan.query_text else None
+        return self._execute_template(
+            request,
+            template_id=self._resolve_search_template_id(plan.query_text),
+            params=params,
+            pipeline=pipeline,
         )
 
     def search_lexical(self, request: SearchRequest) -> SearchResponse:
         """Execute a keyword-only (BM25) search, bypassing the neural hybrid pipeline."""
         plan = build_search_plan(request)
-        params = plan.to_params()
-        t0 = time.monotonic()
-        response = self._client.search_template(
-            body={"id": settings.keyword_search_template_id, "params": params},
-            index=self._index,
-        )
-        took_ms = int((time.monotonic() - t0) * 1000)
-        hits = response.get("hits", {})
-        total_value = hits.get("total", {})
-        total = total_value.get("value", 0) if isinstance(total_value, dict) else int(total_value)
-        items = [self._map_hit(h) for h in hits.get("hits", [])]
-        return SearchResponse(
-            items=items,
-            total=total,
-            page=request.page,
-            page_size=request.page_size,
-            took_ms=took_ms,
+        return self._execute_template(
+            request,
+            template_id=settings.keyword_search_template_id,
+            params=plan.to_params(),
         )
 
     def facets(self, request: FacetsRequest) -> FacetsResponse:
@@ -117,6 +89,32 @@ class SearchService:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _execute_template(
+        self,
+        request: SearchRequest,
+        *,
+        template_id: str,
+        params: dict,
+        pipeline: str | None = None,
+    ) -> SearchResponse:
+        t0 = time.monotonic()
+        response = self._client.search_template(
+            body={"id": template_id, "params": params},
+            index=self._index,
+            params={"search_pipeline": pipeline} if pipeline else None,
+        )
+        took_ms = int((time.monotonic() - t0) * 1000)
+        hits = response.get("hits", {})
+        total_value = hits.get("total", {})
+        total = total_value.get("value", 0) if isinstance(total_value, dict) else int(total_value)
+        return SearchResponse(
+            items=[self._map_hit(h) for h in hits.get("hits", [])],
+            total=total,
+            page=request.page,
+            page_size=request.page_size,
+            took_ms=took_ms,
+        )
 
     @staticmethod
     def _resolve_search_template_id(query_text: str | None) -> str:

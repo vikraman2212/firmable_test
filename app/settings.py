@@ -21,13 +21,27 @@ class Settings(BaseSettings):
     max_page_size: int = 100
     default_tag_user_id: str = "local-user"
 
-    # Ollama LLM backend
+    # LLM provider selection — set llm_provider to one of: ollama, openai, google-genai
+    # Model format follows LangChain's init_chat_model: just the model name (provider is set separately)
+    llm_provider: str = "ollama"
+    llm_model: str = "llama3.2:3b"
+    llm_temperature: float = 0.0
+
+    # Ollama-specific (used for health probe and base URL when provider=ollama)
     ollama_base_url: str = "http://ollama:11434"
-    ollama_model: str = "llama3.2:3b"
     ollama_timeout: int = 30
+
+    # OpenAI (provider=openai)
+    openai_api_key: str = ""
+
+    # Google Gemini (provider=google-genai)
+    google_api_key: str = ""
 
     # Tavily web search (optional; when empty the agent falls back to DuckDuckGo)
     tavily_api_key: str = ""
+
+    # LangGraph agent recursion limit (max tool-call steps per request)
+    agent_recursion_limit: int = 50
 
     # LangSmith tracing (optional)
     langsmith_tracing: bool = False

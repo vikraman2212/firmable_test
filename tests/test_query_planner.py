@@ -32,24 +32,132 @@ def test_blank_query_becomes_none():
     assert plan.query_text is None
 
 
-def test_founded_year_phrase_becomes_exact_year_filter():
+def test_founded_year_phrase_remains_query_text():
     req = SearchRequest(query="insurance companies started during 1980")
     plan = build_search_plan(req)
-    assert plan.query_text == "insurance"
-    assert plan.filters["year_founded_gte"] == 1980
-    assert plan.filters["year_founded_lte"] == 1980
+    assert plan.query_text == "insurance companies started during 1980"
+    assert "year_founded_gte" not in plan.filters
+    assert "year_founded_lte" not in plan.filters
 
 
-def test_explicit_year_filters_override_query_extraction():
+def test_founded_year_after_phrase_remains_query_text():
+    req = SearchRequest(query="internet companies started after 2010")
+    plan = build_search_plan(req)
+    assert plan.query_text == "internet companies started after 2010"
+    assert "year_founded_gte" not in plan.filters
+    assert "year_founded_lte" not in plan.filters
+
+
+def test_founded_year_before_phrase_remains_query_text():
+    req = SearchRequest(query="internet companies started before 2010")
+    plan = build_search_plan(req)
+    assert plan.query_text == "internet companies started before 2010"
+    assert "year_founded_lte" not in plan.filters
+    assert "year_founded_gte" not in plan.filters
+
+
+def test_founded_year_since_phrase_remains_query_text():
+    req = SearchRequest(query="internet companies founded since 2010")
+    plan = build_search_plan(req)
+    assert plan.query_text == "internet companies founded since 2010"
+    assert "year_founded_gte" not in plan.filters
+
+
+def test_founded_year_by_phrase_remains_query_text():
+    req = SearchRequest(query="internet companies founded by 2010")
+    plan = build_search_plan(req)
+    assert plan.query_text == "internet companies founded by 2010"
+    assert "year_founded_lte" not in plan.filters
+
+
+def test_explicit_year_filters_are_respected():
     req = SearchRequest(
         query="insurance companies started during 1980",
         year_founded_gte=1975,
         year_founded_lte=1985,
     )
     plan = build_search_plan(req)
-    assert plan.query_text == "insurance"
+    assert plan.query_text == "insurance companies started during 1980"
     assert plan.filters["year_founded_gte"] == 1975
     assert plan.filters["year_founded_lte"] == 1985
+
+
+def test_city_phrase_remains_in_query_text():
+    """Location phrases remain semantic query text unless user sets explicit filters."""
+    req = SearchRequest(query="companies started in 2010 at sydney")
+    plan = build_search_plan(req)
+    assert "year_founded_gte" not in plan.filters
+    assert "year_founded_lte" not in plan.filters
+    assert plan.query_text == "companies started in 2010 at sydney"
+
+
+def test_in_city_phrase_remains_in_query_text():
+    """Location phrases are not converted to structured city filters."""
+    req = SearchRequest(query="tech companies in london")
+    plan = build_search_plan(req)
+    assert "city" not in plan.filters
+    assert plan.query_text == "tech companies in london"
+
+
+def test_country_phrase_remains_in_query_text():
+    """Country words in free text stay in semantic query text."""
+    req = SearchRequest(query="companies started in 2010 in australia")
+    plan = build_search_plan(req)
+    assert "year_founded_gte" not in plan.filters
+    assert "year_founded_lte" not in plan.filters
+    assert "country" not in plan.filters
+    assert plan.query_text == "companies started in 2010 in australia"
+
+
+def test_at_country_phrase_remains_in_query_text():
+    """'at <country>' stays in query text for semantic retrieval."""
+    req = SearchRequest(query="companies started in 2010 at australia")
+    plan = build_search_plan(req)
+    assert "year_founded_gte" not in plan.filters
+    assert "year_founded_lte" not in plan.filters
+    assert "country" not in plan.filters
+    assert plan.query_text == "companies started in 2010 at australia"
+
+
+def test_full_locality_phrase_remains_in_query_text():
+    """Comma-separated locality stays in query text unless explicit sidebar filters are set."""
+    req = SearchRequest(query="companies in melbourne, victoria, australia")
+    plan = build_search_plan(req)
+    assert "city" not in plan.filters
+    assert "region" not in plan.filters
+    assert "country" not in plan.filters
+    assert plan.query_text == "companies in melbourne, victoria, australia"
+
+
+def test_city_country_pair_remains_in_query_text():
+    """Two-part locality phrases are left to semantic matching."""
+    req = SearchRequest(query="companies in melbourne, australia")
+    plan = build_search_plan(req)
+    assert "city" not in plan.filters
+    assert "country" not in plan.filters
+    assert plan.query_text == "companies in melbourne, australia"
+
+
+def test_industry_like_word_is_semantic_query_text():
+    """No location parsing means words like 'technology' remain query text."""
+    req = SearchRequest(query="companies in technology")
+    plan = build_search_plan(req)
+    assert "city" not in plan.filters
+    assert plan.query_text == "companies in technology"
+
+
+def test_explicit_city_filter_is_respected():
+    """Explicit city filter from sidebar should be preserved."""
+    req = SearchRequest(query="companies at sydney", city="Melbourne")
+    plan = build_search_plan(req)
+    assert plan.filters.get("city") == "melbourne"
+
+
+def test_explicit_country_filter_is_respected():
+    """Explicit country filter from sidebar should be preserved."""
+    req = SearchRequest(query="companies in australia", country="New Zealand")
+    plan = build_search_plan(req)
+    assert plan.filters.get("country") == "new zealand"
 
 
 def test_filters_extracted_correctly():

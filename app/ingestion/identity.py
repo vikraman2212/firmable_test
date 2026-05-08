@@ -35,10 +35,13 @@ def build_semantic_text(
     region: Optional[str] = None,
     country: Optional[str] = None,
     year_founded: Optional[int] = None,
+    size_range: Optional[str] = None,
+    employee_estimate: Optional[int] = None,
 ) -> str:
     """Build the company_semantic_text string used as embedding input.
 
-    Composition order: name, industry, city, region, country, "founded YEAR"
+    Composition order: name, industry, city, region, country, "founded YEAR",
+    "employees N", size_range label.
     Only non-None, non-blank parts are included.
     Parts are joined with a single space.
     name is required and must be non-blank (raises ValueError if blank).
@@ -50,6 +53,8 @@ def build_semantic_text(
         region: Normalized region (optional).
         country: Normalized country (optional).
         year_founded: Integer year (optional).
+        size_range: Size bucket string, e.g. "1001 - 5000" (optional).
+        employee_estimate: Current employee headcount integer (optional).
 
     Returns:
         Space-joined semantic text string.
@@ -72,5 +77,9 @@ def build_semantic_text(
         parts.append(country)
     if year_founded is not None:
         parts.append(f"founded {year_founded}")
+    if employee_estimate is not None:
+        parts.append(f"employees {employee_estimate}")
+    if size_range is not None and size_range.strip():
+        parts.append(size_range)
 
     return " ".join(parts)

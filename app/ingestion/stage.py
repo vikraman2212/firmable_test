@@ -139,6 +139,8 @@ def _normalize_row(raw) -> Optional[dict]:
         region=region,
         country=country,
         year_founded=year_founded,
+        size_range=size_range,
+        employee_estimate=current_emp,
     )
 
     return {

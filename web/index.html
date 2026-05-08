@@ -449,15 +449,88 @@
     }
 
     .reasoning-content {
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .ai-step {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 3px 0;
+      font-size: 12px;
       color: #c4c4e0;
-      font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+      line-height: 1.5;
+    }
+
+    .ai-step-icon {
+      flex: 0 0 14px;
+      text-align: center;
       font-size: 11px;
+    }
+
+    .ai-step--running .ai-step-icon {
+      animation: ai-pulse 1.2s ease-in-out infinite;
+    }
+
+    .ai-step--done .ai-step-icon { color: #34d399; }
+
+    .ai-step-label { flex: 1; min-width: 0; }
+    .ai-step-label em { color: #a5b4fc; font-style: normal; }
+
+    .ai-step-count {
+      font-size: 11px;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+
+    .thinking-stream {
+      font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+      font-size: 11px;
+      color: #6b7aad;
+      line-height: 1.55;
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1e1e38;
+    }
+
+    .thinking-stream:empty {
+      display: none;
+    }
+
+    .thinking-cursor {
+      display: inline-block;
+      width: 6px;
+      height: 11px;
+      background: #6b7aad;
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink 0.8s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .ai-explanation {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #2d2d4e;
+      color: #c4c4e0;
+      font-size: 12px;
       line-height: 1.6;
       white-space: pre-wrap;
       word-break: break-word;
-      max-height: 220px;
-      overflow-y: auto;
-      margin: 0;
+    }
+
+    @keyframes ai-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
   </style>
 </head>
@@ -601,7 +674,8 @@
 
     <div id="reasoning-panel" class="reasoning-panel" style="display:none">
       <div class="reasoning-header">AI is thinking…</div>
-      <pre id="reasoning-content" class="reasoning-content"></pre>
+      <div id="thinking-stream" class="thinking-stream"></div>
+      <div id="reasoning-content" class="reasoning-content"></div>
     </div>
 
     <div id="error-message" role="alert"></div>
@@ -624,6 +698,6 @@
 
 </div>
 
-<script src="app.js?v=20260506b"></script>
+<script src="app.js?v=20260507a"></script>
 </body>
 </html>

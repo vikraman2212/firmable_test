@@ -44,6 +44,8 @@
   const aiStatus        = document.getElementById("ai-status");
   const reasoningPanel  = document.getElementById("reasoning-panel");
   const reasoningContent = document.getElementById("reasoning-content");
+  const reasoningHeader  = document.querySelector("#reasoning-panel .reasoning-header");
+  const thinkingStream  = document.getElementById("thinking-stream");
 
   var currentPage = 1;
   var selectedCompanyIds = new Set();
@@ -100,20 +102,12 @@
 
   prevBtn.addEventListener("click", function () {
     if (prevBtn.disabled || currentPage <= 1) return;
-    if (agenticMode) {
-      runAgentSearch(currentPage - 1);
-    } else {
-      runSearch(currentPage - 1);
-    }
+    runSearch(currentPage - 1);
   });
 
   nextBtn.addEventListener("click", function () {
     if (nextBtn.disabled) return;
-    if (agenticMode) {
-      runAgentSearch(currentPage + 1);
-    } else {
-      runSearch(currentPage + 1);
-    }
+    runSearch(currentPage + 1);
   });
 
   resultList.addEventListener("change", function (event) {
@@ -168,6 +162,9 @@
     var body = buildRequestBody(page);
     showLoading("Searching\u2026");
     hideError();
+    hideAIStatus();
+    hideReasoningPanel();
+    clearReasoning();
 
     fetch(SEARCH_URL, {
       method: "POST",
@@ -196,13 +193,16 @@
   }
 
   // ── Agent search (POST /agent/search, SSE) ─────────────────
+  var _pendingResult = null; // buffer — only rendered on "done"
+
   function runAgentSearch(page) {
     var body = buildRequestBody(page);
+    _pendingResult = null;
     showLoading("AI is thinking\u2026");
     hideError();
     hideAIStatus();
     clearReasoning();
-    showReasoningPanel();
+    // Don't show the panel yet — wait until first tool fires
 
     fetch(AGENT_SEARCH_URL, {
       method: "POST",
@@ -243,6 +243,7 @@
         if (chunk.done) {
           if (buf.trim()) parseAndDispatch(buf);
           hideLoading();
+          hideReasoningPanel();
           return;
         }
         buf += decoder.decode(chunk.value, { stream: true });
@@ -282,51 +283,61 @@
 
   function handleSSEEvent(eventType, payload) {
     switch (eventType) {
+      case "status":
+        // "started" sentinel — nothing to show yet
+        break;
+
       case "token":
-        appendReasoning(payload.text || "");
+        _appendThinkingToken(payload.text || "");
         break;
 
       case "tool_call":
-        appendReasoning("\n[\u2192 " + esc(payload.tool || "") + "]\n");
+        _flushThinkingStream();
+        _addReasoningStep(payload.tool || "", payload.input);
+        showReasoningPanel(false);
         break;
 
       case "tool_result":
-        appendReasoning("[\u2190 " + (payload.total || 0) + " results]\n");
+        _updateReasoningStep(payload.tool || "", payload.total || 0);
         break;
 
       case "result":
-        hideLoading();
-        currentPage = typeof payload.page === "number" ? payload.page : 1;
-        renderResults(payload);
-        if (payload.fallback_used) {
-          showAIStatus("AI unavailable \u2014 showing hybrid results");
-        } else {
-          hideAIStatus();
-        }
-        if (payload.agent_explanation) {
-          clearReasoning();
-          appendReasoning(payload.agent_explanation);
-          showReasoningPanel();
-        } else {
-          hideReasoningPanel();
-        }
+        // Buffer — don't render yet. We may receive multiple result events
+        // (one per tool call preview). Only the final one matters.
+        _pendingResult = payload;
         break;
 
       case "error":
         hideLoading();
         hideReasoningPanel();
+        _pendingResult = null;
         showError("Agent error: " + esc(payload.message || "unknown error"));
         break;
 
       case "done":
         hideLoading();
+        if (_pendingResult) {
+          currentPage = typeof _pendingResult.page === "number" ? _pendingResult.page : 1;
+          renderResults(_pendingResult);
+          if (_pendingResult.fallback_used) {
+            showAIStatus("AI unavailable \u2014 showing hybrid results");
+          } else {
+            hideAIStatus();
+          }
+          _pendingResult = null;
+        }
+        _flushThinkingStream();
+        hideReasoningPanel();
         break;
     }
   }
 
   // ── Reasoning panel helpers ───────────────────────────────
-  function showReasoningPanel() {
+  function showReasoningPanel(done) {
     reasoningPanel.style.display = "block";
+    if (reasoningHeader) {
+      reasoningHeader.textContent = done ? "AI Response" : "AI is thinking\u2026";
+    }
   }
 
   function hideReasoningPanel() {
@@ -334,12 +345,84 @@
   }
 
   function clearReasoning() {
-    reasoningContent.textContent = "";
+    reasoningContent.innerHTML = "";
+    thinkingStream.innerHTML = "";
+    _thinkingCursor = null;
+    _thinkingText = "";
   }
 
-  function appendReasoning(text) {
-    reasoningContent.textContent += text;
+  var _thinkingCursor = null;
+  var _thinkingText = "";
+
+  function _appendThinkingToken(text) {
+    if (!text) return;
+    _thinkingText += text;
+    // Remove cursor, append text, re-add cursor
+    if (_thinkingCursor && _thinkingCursor.parentNode === thinkingStream) {
+      thinkingStream.removeChild(_thinkingCursor);
+    }
+    thinkingStream.appendChild(document.createTextNode(text));
+    if (!_thinkingCursor) {
+      _thinkingCursor = document.createElement("span");
+      _thinkingCursor.className = "thinking-cursor";
+    }
+    thinkingStream.appendChild(_thinkingCursor);
+    thinkingStream.scrollTop = thinkingStream.scrollHeight;
+    showReasoningPanel(false);
+  }
+
+  function _flushThinkingStream() {
+    // Remove cursor when done thinking
+    if (_thinkingCursor && _thinkingCursor.parentNode === thinkingStream) {
+      thinkingStream.removeChild(_thinkingCursor);
+    }
+    _thinkingText = "";
+  }
+
+  function _toolLabel(toolName) {
+    var labels = {
+      hybrid_search: "Hybrid search",
+      lexical_search: "Keyword search",
+      get_facets: "Fetching facets",
+      web_search: "Web search",
+    };
+    return labels[toolName] || toolName.replace(/_/g, " ");
+  }
+
+  function _inputSummary(input) {
+    if (!input || typeof input !== "object") return "";
+    var q = input.query_text || input.query || "";
+    return q ? esc(String(q).slice(0, 80)) : "";
+  }
+
+  function _addReasoningStep(toolName, input) {
+    var step = document.createElement("div");
+    step.className = "ai-step ai-step--running";
+    step.setAttribute("data-tool", toolName);
+
+    var summary = _inputSummary(input);
+    var labelHtml = esc(_toolLabel(toolName)) +
+      (summary ? ": <em>" + summary + "</em>" : "");
+
+    step.innerHTML =
+      "<span class=\"ai-step-icon\">\u29D7</span>" +
+      "<span class=\"ai-step-label\">" + labelHtml + "</span>" +
+      "<span class=\"ai-step-count\"></span>";
+
+    reasoningContent.appendChild(step);
     reasoningContent.scrollTop = reasoningContent.scrollHeight;
+  }
+
+  function _updateReasoningStep(toolName, total) {
+    var steps = reasoningContent.querySelectorAll(".ai-step[data-tool=\"" + toolName + "\"]");
+    var step = steps[steps.length - 1];
+    if (!step) return;
+    step.classList.remove("ai-step--running");
+    step.classList.add("ai-step--done");
+    var icon = step.querySelector(".ai-step-icon");
+    if (icon) icon.textContent = "\u2713";
+    var count = step.querySelector(".ai-step-count");
+    if (count) count.textContent = total + " result" + (total !== 1 ? "s" : "");
   }
 
   function showAIStatus(msg) {
@@ -583,6 +666,8 @@
     loading.style.display = "none";
     loading.textContent = "Searching\u2026";
     searchBtn.disabled = false;
+    prevBtn.disabled = false;
+    nextBtn.disabled = false;
   }
 
   function renderPagination(total, page, pageSize) {

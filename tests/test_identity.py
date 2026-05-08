@@ -62,10 +62,13 @@ class TestBuildSemanticText:
             region="new york",
             country="united states",
             year_founded=1911,
+            employee_estimate=350000,
+            size_range="10001+",
         )
         assert result == (
             "ibm information technology and services "
-            "new york new york united states founded 1911"
+            "new york new york united states founded 1911 "
+            "employees 350000 10001+"
         )
 
     def test_name_only(self):
@@ -117,3 +120,29 @@ class TestBuildSemanticText:
         # No double spaces
         assert "  " not in result
         assert result == "foo bar baz founded 2000"
+
+    def test_employee_estimate_included(self):
+        result = build_semantic_text("acme", employee_estimate=1500)
+        assert result == "acme employees 1500"
+
+    def test_size_range_included(self):
+        result = build_semantic_text("acme", size_range="1001 - 5000")
+        assert result == "acme 1001 - 5000"
+
+    def test_employee_and_size_range_order(self):
+        result = build_semantic_text(
+            "acme",
+            country="australia",
+            year_founded=2005,
+            employee_estimate=3000,
+            size_range="1001 - 5000",
+        )
+        assert result == "acme australia founded 2005 employees 3000 1001 - 5000"
+
+    def test_none_employee_estimate_skipped(self):
+        result = build_semantic_text("acme", employee_estimate=None)
+        assert result == "acme"
+
+    def test_none_size_range_skipped(self):
+        result = build_semantic_text("acme", size_range=None)
+        assert result == "acme"

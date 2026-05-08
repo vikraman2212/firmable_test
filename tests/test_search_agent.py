@@ -41,8 +41,10 @@ def _make_agent(service=None, settings=None):
         service = MagicMock()
     if settings is None:
         settings = MagicMock()
+        settings.llm_provider = "ollama"
         settings.ollama_base_url = "http://ollama:11434"
         settings.ollama_timeout = 30
+        settings.agent_recursion_limit = 50
         settings.tavily_api_key = ""
     graph = MagicMock()
     return SearchAgent(graph=graph, service=service, settings=settings)
@@ -89,6 +91,7 @@ def test_build_user_input_with_industry():
 def test_system_prompt_blocks_state_as_country_and_uses_lowercase_it():
     assert 'NEVER put a state or province name into the country field' in _SYSTEM_PROMPT
     assert 'NEVER set country and region to the same value' in _SYSTEM_PROMPT
+    assert 'If hybrid_search returns 0 results, you MUST call web_search before producing the final answer' in _SYSTEM_PROMPT
     assert 'industry=["information technology"]' in _SYSTEM_PROMPT
     assert 'CompanyResult response model fields: company_id, name, domain, industry, size_range, city, region, country, year_founded, current_employee_estimate, explanation' in _SYSTEM_PROMPT
 
@@ -282,3 +285,38 @@ async def test_astream_emits_preview_result_after_search_tool_returns_hits():
     assert result_payloads[0]["page_size"] == 5
     assert result_payloads[0]["agent_explanation"] is None
     assert result_payloads[1]["agent_explanation"] == "Found 1 company in Melbourne."
+
+
+@pytest.mark.asyncio
+async def test_astream_uses_fallback_when_graph_hits_recursion_limit():
+    service = MagicMock()
+    service.search.return_value = _make_search_response()
+    agent = _make_agent(service=service)
+    req = _make_request()
+
+    class GraphRecursionError(Exception):
+        pass
+
+    async def failing_astream_events(*args, **kwargs):
+        raise GraphRecursionError("Recursion limit of 25 reached without hitting a stop condition")
+        yield
+
+    agent._graph.astream_events = failing_astream_events
+
+    with patch("app.agent.search_agent._probe_ollama", new=AsyncMock(return_value=True)):
+        chunks = [c async for c in agent.astream(req)]
+
+    event_types = []
+    result_payload = None
+    for chunk in chunks:
+        for line in chunk.split("\n"):
+            if line.startswith("event: "):
+                event_types.append(line[7:])
+        if chunk.startswith("event: result\n"):
+            data = chunk.split("\ndata: ", 1)[1].strip()
+            result_payload = json.loads(data)
+
+    assert event_types == ["result", "done"]
+    assert result_payload is not None
+    assert result_payload["fallback_used"] is True
+    assert result_payload["agent_path"] == "fallback"

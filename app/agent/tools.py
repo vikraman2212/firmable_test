@@ -23,11 +23,22 @@ logger = logging.getLogger(__name__)
 
 _LOW_RESULT_THRESHOLD = 3
 
-
 _VALID_SIZE_RANGES = [
     "1 - 10", "11 - 50", "51 - 200", "201 - 500",
     "501 - 1000", "1001 - 5000", "5001 - 10000", "10001+",
 ]
+
+_INDEX_UNAVAILABLE_RESPONSE = json.dumps({
+    "error": "search_index_unavailable",
+    "note": "The company search index is not available. Switch to the web_search tool to answer this query.",
+    "hits": [],
+    "total": 0,
+})
+
+
+# ---------------------------------------------------------------------------
+# Pydantic input schemas
+# ---------------------------------------------------------------------------
 
 
 class _SearchInput(BaseModel):
@@ -104,6 +115,11 @@ class _WebSearchInput(BaseModel):
     query: str = Field(description="Search query for external web information about companies")
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
 def _search_response_to_json(resp, low_threshold: int = _LOW_RESULT_THRESHOLD) -> str:
     hits = [
         {
@@ -122,16 +138,34 @@ def _search_response_to_json(resp, low_threshold: int = _LOW_RESULT_THRESHOLD) -
     ]
     result: dict = {"hits": hits, "total": resp.total, "took_ms": resp.took_ms}
     if resp.total < low_threshold:
-        result["note"] = (
-            f"Only {resp.total} result(s) found — consider web_search if external data is needed"
-        )
+        if resp.total == 0:
+            result["note"] = "Only 0 result(s) found — call web_search now before final answer"
+        else:
+            result["note"] = (
+                f"Only {resp.total} result(s) found — consider web_search for broader coverage"
+            )
     return json.dumps(result)
 
 
-def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[BaseTool]:
-    """Build the agent tool set with the SearchService injected via closure."""
+def _is_index_missing(exc: Exception) -> bool:
+    error_str = str(exc)
+    return "index_not_found_exception" in error_str or "no such index" in error_str
 
-    def hybrid_search_fn(
+
+# ---------------------------------------------------------------------------
+# Tool implementations
+# ---------------------------------------------------------------------------
+
+
+class SearchTools:
+    """Callable tool methods bound to a SearchService instance."""
+
+    def __init__(self, service: SearchService, tavily_api_key: str = "") -> None:
+        self._service = service
+        self._tavily_api_key = tavily_api_key
+
+    def hybrid_search(
+        self,
         query: str,
         industry: Optional[list[str]] = None,
         size_range: Optional[list[str]] = None,
@@ -154,12 +188,16 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
                 page=1,
                 page_size=10,
             )
-            return _search_response_to_json(service.search(req))
+            return _search_response_to_json(self._service.search(req))
         except Exception as exc:
+            if _is_index_missing(exc):
+                logger.warning("hybrid_search: index unavailable — %s", exc)
+                return _INDEX_UNAVAILABLE_RESPONSE
             logger.warning("hybrid_search tool error: %s", exc)
             return json.dumps({"error": str(exc), "hits": [], "total": 0})
 
-    def lexical_search_fn(
+    def lexical_search(
+        self,
         query: str,
         industry: Optional[list[str]] = None,
         size_range: Optional[list[str]] = None,
@@ -182,12 +220,16 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
                 page=1,
                 page_size=10,
             )
-            return _search_response_to_json(service.search_lexical(req))
+            return _search_response_to_json(self._service.search_lexical(req))
         except Exception as exc:
+            if _is_index_missing(exc):
+                logger.warning("lexical_search: index unavailable — %s", exc)
+                return _INDEX_UNAVAILABLE_RESPONSE
             logger.warning("lexical_search tool error: %s", exc)
             return json.dumps({"error": str(exc), "hits": [], "total": 0})
 
-    def get_facets_fn(
+    def get_facets(
+        self,
         industry: Optional[list[str]] = None,
         size_range: Optional[list[str]] = None,
         country: Optional[str] = None,
@@ -202,7 +244,7 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
                 region=region,
                 city=city,
             )
-            resp = service.facets(req)
+            resp = self._service.facets(req)
             return json.dumps(
                 {
                     "industry": [{"key": b.key, "count": b.count} for b in resp.industry],
@@ -215,12 +257,12 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
             logger.warning("get_facets tool error: %s", exc)
             return json.dumps({"error": str(exc)})
 
-    def web_search_fn(query: str) -> str:
+    def web_search(self, query: str) -> str:
         try:
-            if tavily_api_key:
+            if self._tavily_api_key:
                 from tavily import TavilyClient  # lazy import — only needed when key is set
 
-                client = TavilyClient(api_key=tavily_api_key)
+                client = TavilyClient(api_key=self._tavily_api_key)
                 response = client.search(query, max_results=5, search_depth="basic")
                 results = [
                     {
@@ -230,13 +272,7 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
                     }
                     for r in response.get("results", [])
                 ]
-                return json.dumps(
-                    {
-                        "results": results,
-                        "total": len(results),
-                        "provider": "tavily",
-                    }
-                )
+                return json.dumps({"results": results, "total": len(results), "provider": "tavily"})
 
             from ddgs import DDGS  # lazy import — only needed when no Tavily key is set
 
@@ -252,28 +288,26 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
                 }
                 for r in response
             ]
-            return json.dumps(
-                {
-                    "results": results,
-                    "total": len(results),
-                    "provider": "duckduckgo",
-                }
-            )
+            return json.dumps({"results": results, "total": len(results), "provider": "duckduckgo"})
         except ImportError as exc:
             logger.warning("web_search provider import error: %s", exc)
-            return json.dumps(
-                {
-                    "error": "web search provider unavailable",
-                    "results": [],
-                }
-            )
+            return json.dumps({"error": "web search provider unavailable", "results": []})
         except Exception as exc:
             logger.warning("web_search tool error: %s", exc)
             return json.dumps({"error": str(exc), "results": []})
 
+
+# ---------------------------------------------------------------------------
+# Tool factory
+# ---------------------------------------------------------------------------
+
+
+def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[BaseTool]:
+    """Build the agent tool set for the given SearchService."""
+    t = SearchTools(service, tavily_api_key)
     return [
         StructuredTool.from_function(
-            func=hybrid_search_fn,
+            func=t.hybrid_search,
             name="hybrid_search",
             description=(
                 "Search companies using hybrid BM25 + neural retrieval. "
@@ -284,7 +318,7 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
             args_schema=_SearchInput,
         ),
         StructuredTool.from_function(
-            func=lexical_search_fn,
+            func=t.lexical_search,
             name="lexical_search",
             description=(
                 "Search companies using exact keyword (BM25-only) matching. "
@@ -294,7 +328,7 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
             args_schema=_SearchInput,
         ),
         StructuredTool.from_function(
-            func=get_facets_fn,
+            func=t.get_facets,
             name="get_facets",
             description=(
                 "Get aggregated counts for industry, company size, country, and city. "
@@ -303,7 +337,7 @@ def make_search_tools(service: SearchService, tavily_api_key: str = "") -> list[
             args_schema=_FacetsInput,
         ),
         StructuredTool.from_function(
-            func=web_search_fn,
+            func=t.web_search,
             name="web_search",
             description=(
                 "Search the web for external company information (e.g. recent funding rounds, news). "

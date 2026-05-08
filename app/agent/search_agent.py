@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import time
@@ -9,8 +10,8 @@ from typing import TYPE_CHECKING, AsyncGenerator, Optional
 
 import httpx
 from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
-from langchain_ollama import ChatOllama
 
 from app.agent.tools import make_search_tools
 from app.api.schemas import (
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_AGENT_RECURSION_LIMIT = 50  # fallback if settings object is missing the field
+
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -39,7 +42,8 @@ Help users find companies by using the available search tools.
 Guidelines:
 - Use hybrid_search as the primary tool for natural language queries
 - Use lexical_search only for exact company name or domain lookups
-- Use web_search ONLY when hybrid_search returns fewer than 3 results AND the query seeks external data
+- If hybrid_search returns 0 results, you MUST call web_search before producing the final answer
+- If hybrid_search returns 1-2 results, use web_search when the user asks for broader/external coverage
 - Location mapping rules (MUST follow exactly):
     * US states like "California", "Texas", "New York" → region="california" / region="texas" / region="new york" (lowercase)
     * Countries like "United States", "Australia", "UK" → country="united states" / country="australia" / country="united kingdom"
@@ -125,6 +129,14 @@ def _agent_response_from_search_result(
 # ---------------------------------------------------------------------------
 
 
+@dataclasses.dataclass
+class _StreamState:
+    tool_calls: list[str] = dataclasses.field(default_factory=list)
+    last_search_result: Optional[dict] = None
+    final_explanation: Optional[str] = None
+    web_search_used: bool = False
+
+
 class SearchAgent:
     def __init__(
         self,
@@ -136,128 +148,182 @@ class SearchAgent:
         self._service = service
         self._settings = settings
 
+    def _graph_config(self) -> dict[str, int]:
+        limit = getattr(self._settings, "agent_recursion_limit", _DEFAULT_AGENT_RECURSION_LIMIT)
+        if not isinstance(limit, int) or limit <= 0:
+            limit = _DEFAULT_AGENT_RECURSION_LIMIT
+        return {"recursion_limit": limit}
+
+    @staticmethod
+    def _is_recursion_limit_error(exc: Exception) -> bool:
+        return (
+            type(exc).__name__ == "GraphRecursionError"
+            or "Recursion limit" in str(exc)
+        )
+
+    # ------------------------------------------------------------------
+    # Graph event handlers — each returns a list of SSE strings to yield
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _on_llm_stream(event: dict) -> list[str]:
+        chunk = event["data"].get("chunk")
+        if chunk is None:
+            return []
+        raw = chunk.content if hasattr(chunk, "content") else str(chunk)
+        # content may be a list of blocks (e.g. [{"type": "text", "text": "..."}])
+        if isinstance(raw, list):
+            text = "".join(
+                block.get("text", "") if isinstance(block, dict) else str(block)
+                for block in raw
+            )
+        else:
+            text = raw
+        return [_sse("token", {"text": text})] if text else []
+
+    @staticmethod
+    def _on_tool_start(event: dict, state: _StreamState) -> list[str]:
+        name = event.get("name", "")
+        tool_input = event["data"].get("input", {})
+        if name not in state.tool_calls:
+            state.tool_calls.append(name)
+        if name == "web_search":
+            state.web_search_used = True
+        return [_sse("tool_call", {"tool": name, "input": tool_input})]
+
+    @staticmethod
+    def _on_tool_end(
+        event: dict,
+        state: _StreamState,
+        request: AgentSearchRequest,
+        t0: float,
+    ) -> list[str]:
+        name = event.get("name", "")
+        raw_output = event["data"].get("output", "")
+        if hasattr(raw_output, "content"):
+            raw_output = raw_output.content
+        total = 0
+        try:
+            output_data = (
+                json.loads(raw_output) if isinstance(raw_output, str) else raw_output
+            )
+            if isinstance(output_data, dict):
+                total = output_data.get("total", 0)
+                index_unavailable = output_data.get("error") == "search_index_unavailable"
+                if "hits" in output_data and name != "web_search" and not index_unavailable:
+                    state.last_search_result = output_data
+        except (json.JSONDecodeError, TypeError):
+            pass
+        events = [_sse("tool_result", {"tool": name, "total": total})]
+        if state.last_search_result and total > 0:
+            preview = _agent_response_from_search_result(
+                request,
+                state.last_search_result,
+                took_ms=int((time.monotonic() - t0) * 1000),
+                tool_calls=state.tool_calls,
+                web_search_used=state.web_search_used,
+            )
+            events.append(_sse("result", json.loads(preview.model_dump_json())))
+        return events
+
+    @staticmethod
+    def _on_chain_end(event: dict, state: _StreamState) -> None:
+        output = event["data"].get("output")
+        if not isinstance(output, dict):
+            return
+        messages = output.get("messages", [])
+        if not messages:
+            return
+        last_msg = messages[-1]
+        content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+        if content and isinstance(content, str):
+            state.final_explanation = content
+
+    # ------------------------------------------------------------------
+    # Main stream entry point
+    # ------------------------------------------------------------------
+
     async def astream(self, request: AgentSearchRequest) -> AsyncGenerator[str, None]:
         """Stream SSE events for an agent search request."""
         t0 = time.monotonic()
 
-        ollama_up = await _probe_ollama(
-            self._settings.ollama_base_url, self._settings.ollama_timeout
-        )
-        if not ollama_up:
-            logger.warning(
-                "Ollama unavailable at %s — using hybrid fallback",
-                self._settings.ollama_base_url,
+        if self._settings.llm_provider == "ollama":
+            ollama_up = await _probe_ollama(
+                self._settings.ollama_base_url, self._settings.ollama_timeout
             )
-            async for chunk in self._fallback_stream(request, t0):
-                yield chunk
-            return
+            if not ollama_up:
+                logger.warning(
+                    "Ollama unavailable at %s — using hybrid fallback",
+                    self._settings.ollama_base_url,
+                )
+                async for chunk in self._fallback_stream(request, t0):
+                    yield chunk
+                return
 
-        tool_calls: list[str] = []
-        last_search_result: Optional[dict] = None
-        final_explanation: Optional[str] = None
-        web_search_used = False
-
-        user_input = _build_user_input(request)
-        graph_input = {"messages": [HumanMessage(content=user_input)]}
+        state = _StreamState()
+        graph_input = {"messages": [HumanMessage(content=_build_user_input(request))]}
 
         try:
-            async for event in self._graph.astream_events(graph_input, version="v2"):
+            async for event in self._graph.astream_events(
+                graph_input,
+                config=self._graph_config(),
+                version="v2",
+            ):
                 kind = event["event"]
-                name = event.get("name", "")
 
-                # LLM token streaming (v2 API uses on_chat_model_stream)
                 if kind in ("on_chat_model_stream", "on_llm_stream"):
-                    chunk = event["data"].get("chunk")
-                    if chunk is not None:
-                        text = chunk.content if hasattr(chunk, "content") else str(chunk)
-                        if text:
-                            yield _sse("token", {"text": text})
+                    for sse in self._on_llm_stream(event):
+                        yield sse
 
                 elif kind == "on_tool_start":
-                    tool_input = event["data"].get("input", {})
-                    if name not in tool_calls:
-                        tool_calls.append(name)
-                    if name == "web_search":
-                        web_search_used = True
-                    yield _sse("tool_call", {"tool": name, "input": tool_input})
+                    for sse in self._on_tool_start(event, state):
+                        yield sse
 
                 elif kind == "on_tool_end":
-                    raw_output = event["data"].get("output", "")
-                    # LangGraph wraps tool output in a ToolMessage in newer versions
-                    if hasattr(raw_output, "content"):
-                        raw_output = raw_output.content
-                    total = 0
-                    try:
-                        output_data = (
-                            json.loads(raw_output)
-                            if isinstance(raw_output, str)
-                            else raw_output
-                        )
-                        if isinstance(output_data, dict):
-                            total = output_data.get("total", 0)
-                            if "hits" in output_data and name != "web_search":
-                                last_search_result = output_data
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                    yield _sse("tool_result", {"tool": name, "total": total})
-                    if last_search_result and total > 0:
-                        preview_response = _agent_response_from_search_result(
-                            request,
-                            last_search_result,
-                            took_ms=int((time.monotonic() - t0) * 1000),
-                            tool_calls=tool_calls,
-                            web_search_used=web_search_used,
-                        )
-                        yield _sse("result", json.loads(preview_response.model_dump_json()))
+                    for sse in self._on_tool_end(event, state, request, t0):
+                        yield sse
 
                 elif kind == "on_chain_end":
-                    output = event["data"].get("output")
-                    # LangGraph returns {"messages": [...]} as the final output
-                    if isinstance(output, dict):
-                        messages = output.get("messages", [])
-                        if messages:
-                            last_msg = messages[-1]
-                            content = (
-                                last_msg.content
-                                if hasattr(last_msg, "content")
-                                else str(last_msg)
-                            )
-                            if content and isinstance(content, str):
-                                final_explanation = content
+                    self._on_chain_end(event, state)
 
         except Exception as exc:
+            if self._is_recursion_limit_error(exc):
+                logger.warning("Agent recursion limit reached; using fallback search")
+                async for chunk in self._fallback_stream(request, t0):
+                    yield chunk
+                return
             logger.error("Agent execution error: %s", exc, exc_info=True)
             yield _sse("error", {"message": str(exc)})
 
         # Build and emit the final structured result
         took_ms = int((time.monotonic() - t0) * 1000)
-        total = last_search_result.get("total", 0) if last_search_result else 0
+        total = state.last_search_result.get("total", 0) if state.last_search_result else 0
 
-        if total == 0 and not final_explanation:
-            final_explanation = (
-                "No companies matched your query. Try broader terms or removing some filters."
+        if total == 0 and not state.final_explanation:
+            state.final_explanation = (
+                "AI couldn't find any results for the search criteria. Try a different search."
             )
 
         response = (
             _agent_response_from_search_result(
                 request,
-                last_search_result,
+                state.last_search_result,
                 took_ms=took_ms,
-                tool_calls=tool_calls,
-                web_search_used=web_search_used,
-                final_explanation=final_explanation,
+                tool_calls=state.tool_calls,
+                web_search_used=state.web_search_used,
+                final_explanation=state.final_explanation,
             )
-            if last_search_result
+            if state.last_search_result
             else AgentSearchResponse(
                 items=[],
                 total=0,
                 page=request.page,
                 page_size=request.page_size,
                 took_ms=took_ms,
-                agent_path="web_enriched" if web_search_used else "agent",
+                agent_path="web_enriched" if state.web_search_used else "agent",
                 fallback_used=False,
-                tool_calls=tool_calls,
-                agent_explanation=final_explanation,
+                tool_calls=state.tool_calls,
+                agent_explanation=state.final_explanation,
             )
         )
         yield _sse("result", json.loads(response.model_dump_json()))
@@ -337,16 +403,21 @@ def make_agent(service: SearchService, settings: Settings) -> SearchAgent:
         os.environ["LANGCHAIN_TRACING_V2"] = "true"
         os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
 
-    llm = ChatOllama(
-        base_url=settings.ollama_base_url,
-        model=settings.ollama_model,
-        temperature=0,
+    # Pass provider-specific kwargs through to init_chat_model.
+    # For Ollama, base_url must be set explicitly (Docker hostname differs from localhost).
+    llm_kwargs: dict = {"temperature": settings.llm_temperature}
+    if settings.llm_provider == "ollama":
+        llm_kwargs["base_url"] = settings.ollama_base_url
+
+    llm = init_chat_model(
+        f"{settings.llm_provider}:{settings.llm_model}",
+        **llm_kwargs,
     )
     tools = make_search_tools(service, settings.tavily_api_key)
     graph = create_agent(
         model=llm,
         tools=tools,
-        system_prompt=_SYSTEM_PROMPT,
+        system_prompt=_SYSTEM_PROMPT
     )
     return SearchAgent(graph=graph, service=service, settings=settings)
 

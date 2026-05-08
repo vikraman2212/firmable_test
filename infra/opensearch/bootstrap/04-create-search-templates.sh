@@ -32,6 +32,7 @@ until curl -fsS "${OPENSEARCH_URL}/_cluster/health" | grep -q '"status":"'; do
 done
 echo "OpenSearch is ready"
 
+
 # ---------------------------------------------------------------------------
 # firmable-search-v1 — BM25 scored search template
 #
@@ -178,6 +179,7 @@ HYBRID_SEARCH_TEMPLATE=$(cat << 'TEMPLATE'
   "size": {{size}},
   "query": {
     "hybrid": {
+      "pagination_depth": {{pagination_depth}},
       "queries": [
         {
           "bool": {
