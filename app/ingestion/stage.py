@@ -168,6 +168,7 @@ def stage_companies(
     csv_path: Path,
     output_dir: Path,
     *,
+    row_offset: int = 0,
     row_limit: Optional[int] = None,
 ) -> StagingResult:
     """Normalize and write a staged Parquet artifact from the source CSV.
@@ -176,6 +177,8 @@ def stage_companies(
         csv_path: Path to the source companies CSV.
         output_dir: Directory where the Parquet file will be written.
             Created automatically if it does not exist.
+        row_offset: Skip this many data rows before starting (default: 0).
+            Useful for batched seeding (e.g., 0-1000, 1000-2000).
         row_limit: Optional cap on the number of source rows to process.
             Useful for local subset runs and tests.
 
@@ -198,7 +201,7 @@ def stage_companies(
     total_read = 0
     skip_reasons: list[dict] = []
 
-    for raw in read_csv_rows(csv_path, row_limit=row_limit):
+    for raw in read_csv_rows(csv_path, row_offset=row_offset, row_limit=row_limit):
         total_read += 1
         normalized = _normalize_row(raw)
         if normalized is None:

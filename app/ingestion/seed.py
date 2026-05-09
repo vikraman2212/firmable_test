@@ -309,6 +309,13 @@ def _parse_args() -> argparse.Namespace:
         help="Limit CSV rows (useful for local subset runs).",
     )
     parser.add_argument(
+        "--row-offset",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Skip this many CSV rows before starting (useful for batched seeding).",
+    )
+    parser.add_argument(
         "--bulk-request-delay",
         type=float,
         default=None,
@@ -336,6 +343,7 @@ def _resolve_cli_config(args: argparse.Namespace) -> dict[str, object]:
         "opensearch_timeout": args.opensearch_timeout or runtime.opensearch.timeout,
         "index_name": runtime.seed.index_name,
         "batch_size": args.batch_size or runtime.seed.batch_size,
+        "row_offset": args.row_offset if args.row_offset is not None else runtime.seed.row_offset,
         "row_limit": args.row_limit if args.row_limit is not None else runtime.seed.row_limit,
         "bulk_request_delay": args.bulk_request_delay if args.bulk_request_delay is not None else runtime.seed.bulk_request_delay,
     }
@@ -376,6 +384,7 @@ def main() -> None:
             staging_result = stage_companies(
                 Path(resolved["csv_path"]),
                 Path(tmp),
+                row_offset=int(resolved["row_offset"]),
                 row_limit=resolved["row_limit"],
             )
             parquet_path = staging_result.parquet_path

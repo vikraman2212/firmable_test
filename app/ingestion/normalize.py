@@ -147,6 +147,7 @@ def validate_csv_columns(fieldnames: list[str]) -> None:
 def read_csv_rows(
     csv_path: Path,
     *,
+    row_offset: int = 0,
     row_limit: Optional[int] = None,
 ) -> Iterator[RawCompanyRow]:
     """Yield raw, unmapped rows from the companies CSV.
@@ -157,11 +158,13 @@ def read_csv_rows(
 
     Args:
         csv_path: Absolute or relative path to the source CSV file.
+        row_offset: Skip this many data rows before starting (default: 0).
+            Useful for batched seeding (e.g., 0-1000, 1000-2000).
         row_limit: If provided, stops after yielding this many data rows (not
-            counting the header).  Useful for local subset runs and tests.
+            counting the header or offset rows).  Useful for local subset runs and tests.
 
     Yields:
-        RawCompanyRow for each data row up to row_limit.
+        RawCompanyRow for each data row in range [row_offset, row_offset + row_limit).
 
     Raises:
         FileNotFoundError: If csv_path does not exist.
@@ -177,8 +180,16 @@ def read_csv_rows(
 
         count = 0
         for raw in reader:
-            if row_limit is not None and count >= row_limit:
+            # Skip rows before row_offset
+            if count < row_offset:
+                count += 1
+                continue
+            
+            # Stop after row_limit rows
+            relative_count = count - row_offset
+            if row_limit is not None and relative_count >= row_limit:
                 break
+            
             yield RawCompanyRow(
                 source_id=raw[_SOURCE_ID_COL].strip(),
                 name=raw["name"].strip(),

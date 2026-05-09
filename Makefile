@@ -100,4 +100,4 @@ dev-setup: infra-up ollama-pull ## One-shot local onboarding: start stack, pull 
 
 dev: ## Run the API locally with hot-reload — stops the docker API container first (UI at http://localhost:8000/ui)
 	@$(DOCKER_COMPOSE) stop api 2>/dev/null || true
-	$(PYTHON) -m uvicorn app.api.main:app --reload --port 8000
+	$(PYTHON) -m uvicorn app.api.main:app --host 0.0.0.0 --reload --port 8000

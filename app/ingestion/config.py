@@ -34,6 +34,7 @@ class SeedRuntimeConfig:
     parquet_path: Optional[Path] = None
     index_name: str = DEFAULT_INDEX_NAME
     batch_size: int = DEFAULT_BATCH_SIZE
+    row_offset: int = 0
     row_limit: Optional[int] = None
     bulk_request_delay: float = DEFAULT_BULK_REQUEST_DELAY
 
@@ -106,6 +107,7 @@ def load_ingestion_config(path: Path | None = None) -> IngestionRuntimeConfig:
             parquet_path=_as_path(seed_raw.get("parquet_path")),
             index_name=str(seed_raw.get("index_name", DEFAULT_INDEX_NAME)),
             batch_size=_as_int(seed_raw.get("batch_size"), DEFAULT_BATCH_SIZE),
+            row_offset=_as_int(seed_raw.get("row_offset"), 0),
             row_limit=(int(seed_raw["row_limit"]) if seed_raw.get("row_limit") is not None else None),
             bulk_request_delay=float(seed_raw.get("bulk_request_delay", DEFAULT_BULK_REQUEST_DELAY)),
         ),

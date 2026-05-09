@@ -101,7 +101,7 @@ make dev
 `make dev` intentionally stops the Docker `api` container first, then runs:
 
 ```bash
-uv run python -m uvicorn app.api.main:app --reload --port 8000
+uv run python -m uvicorn app.api.main:app --host 0.0.0.0 --reload --port 8000
 ```
 
 What to look for:
