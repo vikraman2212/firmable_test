@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -159,6 +160,7 @@ def seed(
     client: OpenSearch,
     batch_size: int = DEFAULT_BATCH_SIZE,
     index_name: str = DEFAULT_INDEX_NAME,
+    bulk_request_delay: float = 0.0,
 ) -> SeedResult:
     """Bulk-load a staged Parquet artifact into OpenSearch.
 
@@ -171,6 +173,7 @@ def seed(
         client: ``opensearch-py`` ``OpenSearch`` instance.
         batch_size: Documents per bulk request (default: 500).
         index_name: Target OpenSearch index (default: ``companies``).
+        bulk_request_delay: Seconds to delay between bulk requests (default: 0).
 
     Returns:
         SeedResult with document counts.
@@ -239,6 +242,11 @@ def seed(
             raise OpenSearchError(f"bulk request failed: {exc}") from exc
         bulk_errors += _count_bulk_errors(response)
         batches_sent += 1
+        
+        # Apply delay between bulk requests if configured
+        if bulk_request_delay > 0 and batches_sent < (total + batch_size - 1) // batch_size:
+            logger.debug(f"Waiting {bulk_request_delay}s before next bulk request")
+            time.sleep(bulk_request_delay)
 
     return SeedResult(
         index_name=target_index,
@@ -300,6 +308,13 @@ def _parse_args() -> argparse.Namespace:
         metavar="N",
         help="Limit CSV rows (useful for local subset runs).",
     )
+    parser.add_argument(
+        "--bulk-request-delay",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="Delay in seconds between bulk requests to OpenSearch (default: 0).",
+    )
     return parser.parse_args()
 
 
@@ -322,6 +337,7 @@ def _resolve_cli_config(args: argparse.Namespace) -> dict[str, object]:
         "index_name": runtime.seed.index_name,
         "batch_size": args.batch_size or runtime.seed.batch_size,
         "row_limit": args.row_limit if args.row_limit is not None else runtime.seed.row_limit,
+        "bulk_request_delay": args.bulk_request_delay if args.bulk_request_delay is not None else runtime.seed.bulk_request_delay,
     }
 
 
@@ -388,6 +404,7 @@ def main() -> None:
                 client=client,
                 index_name=str(resolved["index_name"]),
                 batch_size=int(resolved["batch_size"]),
+                bulk_request_delay=float(resolved["bulk_request_delay"]),
             )
     else:
         parquet_path = Path(resolved["parquet_path"])
@@ -400,6 +417,7 @@ def main() -> None:
             client=client,
             index_name=str(resolved["index_name"]),
             batch_size=int(resolved["batch_size"]),
+            bulk_request_delay=float(resolved["bulk_request_delay"]),
         )
 
     print(f"Index created  : {result.index_name}")

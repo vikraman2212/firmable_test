@@ -7,6 +7,7 @@ csv_path = "data/companies_sorted.csv"
 index_name = "companies"
 batch_size = 500
 # row_limit = 1000
+# bulk_request_delay = 1.0
 
 [sync]
 parquet_path = "data/staged/latest.parquet"

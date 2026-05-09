@@ -17,6 +17,7 @@ DEFAULT_OPENSEARCH_URL = "http://localhost:9200"
 DEFAULT_OPENSEARCH_TIMEOUT = 60
 DEFAULT_INDEX_NAME = "companies"
 DEFAULT_BATCH_SIZE = 500
+DEFAULT_BULK_REQUEST_DELAY = 0
 DEFAULT_SEED_CSV_PATH = Path("data/companies_sorted.csv")
 DEFAULT_SYNC_PARQUET_PATH = Path("data/staged/latest.parquet")
 
@@ -34,6 +35,7 @@ class SeedRuntimeConfig:
     index_name: str = DEFAULT_INDEX_NAME
     batch_size: int = DEFAULT_BATCH_SIZE
     row_limit: Optional[int] = None
+    bulk_request_delay: float = DEFAULT_BULK_REQUEST_DELAY
 
 
 @dataclass(frozen=True)
@@ -105,6 +107,7 @@ def load_ingestion_config(path: Path | None = None) -> IngestionRuntimeConfig:
             index_name=str(seed_raw.get("index_name", DEFAULT_INDEX_NAME)),
             batch_size=_as_int(seed_raw.get("batch_size"), DEFAULT_BATCH_SIZE),
             row_limit=(int(seed_raw["row_limit"]) if seed_raw.get("row_limit") is not None else None),
+            bulk_request_delay=float(seed_raw.get("bulk_request_delay", DEFAULT_BULK_REQUEST_DELAY)),
         ),
         sync=SyncRuntimeConfig(
             parquet_path=_as_path(sync_raw.get("parquet_path", str(DEFAULT_SYNC_PARQUET_PATH))) or DEFAULT_SYNC_PARQUET_PATH,
